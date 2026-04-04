@@ -1,3 +1,72 @@
+/// A top-level coordinate reference system.
+///
+/// This enum dispatches over the different CRS types that this parser can handle.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Crs {
+    /// A projected CRS (WKT2 keyword: `PROJCRS`).
+    ProjectedCrs(Box<ProjectedCrs>),
+    /// A geographic CRS (WKT2 keyword: `GEOGCRS`).
+    GeogCrs(Box<GeogCrs>),
+}
+
+impl Crs {
+    /// Extract the EPSG code from this CRS's identifiers, if present.
+    pub fn to_epsg(&self) -> Option<i32> {
+        match self {
+            Crs::ProjectedCrs(crs) => crs.to_epsg(),
+            Crs::GeogCrs(crs) => crs.to_epsg(),
+        }
+    }
+}
+
+/// The keyword used for a geographic CRS.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GeogCrsKeyword {
+    /// `GEOGCRS` -- the preferred keyword.
+    GeogCrs,
+    /// `GEOGRAPHICCRS` -- the long form.
+    GeographicCrs,
+}
+
+/// A geographic coordinate reference system (GEOGCRS).
+///
+/// A geographic CRS uses an ellipsoidal coordinate system with latitude and longitude.
+///
+/// WKT2 keywords: `GEOGCRS` (preferred), `GEOGRAPHICCRS`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeogCrs {
+    /// Which keyword was used in the WKT.
+    pub keyword: GeogCrsKeyword,
+    /// The name of the geographic CRS (e.g. "WGS 84").
+    pub name: String,
+    /// Present only if the CRS is dynamic (has a time-varying reference frame).
+    pub dynamic: Option<DynamicCrs>,
+    /// The datum: either a geodetic reference frame or a datum ensemble.
+    pub datum: Datum,
+    /// The coordinate system describing axes, their directions, and units.
+    pub coordinate_system: CoordinateSystem,
+    /// Zero or more scope-extent pairings describing the applicability of this CRS.
+    pub usages: Vec<Usage>,
+    /// Zero or more external identifiers referencing this CRS.
+    pub identifiers: Vec<Identifier>,
+    /// An optional free-text remark about this CRS.
+    pub remark: Option<String>,
+}
+
+impl GeogCrs {
+    /// Extract the EPSG code from this CRS's identifiers, if present.
+    pub fn to_epsg(&self) -> Option<i32> {
+        self.identifiers.iter().find_map(|id| {
+            if id.authority_name == "EPSG"
+                && let AuthorityId::Number(n) = id.authority_unique_id
+            {
+                return Some(n as i32);
+            }
+            None
+        })
+    }
+}
+
 /// A projected coordinate reference system (PROJCRS).
 ///
 /// A projected CRS is derived from a geographic CRS by applying a map projection.

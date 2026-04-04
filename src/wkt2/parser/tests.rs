@@ -668,3 +668,150 @@ fn parse_identifier_text_id_with_version() {
     );
     assert_eq!(id.version, Some(AuthorityId::Number(7.1)));
 }
+
+// ---------------------------------------------------------------------------
+// GEOGCRS parsing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn parse_geogcrs_static() {
+    let wkt = r#"GEOGCRS["WGS 84",
+        DATUM["World Geodetic System 1984",
+            ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],
+        CS[ellipsoidal,2],
+            AXIS["latitude",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],
+            AXIS["longitude",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geog_crs().unwrap();
+
+    assert_eq!(result.name, "WGS 84");
+    assert!(result.dynamic.is_none());
+    let Datum::ReferenceFrame(ref rf) = result.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    assert_eq!(rf.keyword, DatumKeyword::Datum);
+    assert_eq!(rf.name, "World Geodetic System 1984");
+    assert_eq!(rf.ellipsoid.semi_major_axis, 6378137.0);
+    assert!(rf.prime_meridian.is_none());
+
+    let cs = &result.coordinate_system;
+    assert_eq!(cs.cs_type, CsType::Ellipsoidal);
+    assert_eq!(cs.dimension, 2);
+    assert_eq!(cs.axes.len(), 2);
+    assert_eq!(cs.axes[0].direction, "north");
+    assert_eq!(cs.axes[1].direction, "east");
+}
+
+#[test]
+fn parse_geogcrs_with_prime_meridian() {
+    let wkt = r#"GEOGCRS["NTF (Paris)",
+        DATUM["Nouvelle Triangulation Francaise",
+            ELLIPSOID["Clarke 1880 (IGN)",6378249.2,293.4660213]],
+        PRIMEM["Paris",2.5969213,ANGLEUNIT["grad",0.015707963267949]],
+        CS[ellipsoidal,2],
+            AXIS["latitude",north],
+            AXIS["longitude",east],
+            ANGLEUNIT["grad",0.015707963267949]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geog_crs().unwrap();
+
+    assert_eq!(result.name, "NTF (Paris)");
+    let Datum::ReferenceFrame(ref rf) = result.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    let pm = rf.prime_meridian.as_ref().unwrap();
+    assert_eq!(pm.name, "Paris");
+    assert_eq!(pm.irm_longitude, 2.5969213);
+}
+
+#[test]
+fn parse_geogcrs_dynamic() {
+    let wkt = r#"GEOGCRS["ITRF2014",
+        DYNAMIC[FRAMEEPOCH[2010]],
+        TRF["International Terrestrial Reference Frame 2014",
+            ELLIPSOID["GRS 1980",6378137,298.257222101]],
+        CS[ellipsoidal,3],
+            AXIS["latitude",north],
+            AXIS["longitude",east],
+            AXIS["ellipsoidal height",up],
+            ANGLEUNIT["degree",0.0174532925199433]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geog_crs().unwrap();
+
+    assert_eq!(result.name, "ITRF2014");
+    let d = result.dynamic.as_ref().unwrap();
+    assert_eq!(d.frame_reference_epoch, 2010.0);
+    let Datum::ReferenceFrame(ref rf) = result.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    assert_eq!(rf.keyword, DatumKeyword::Trf);
+    assert_eq!(result.coordinate_system.dimension, 3);
+}
+
+#[test]
+fn parse_geogcrs_with_ensemble() {
+    let wkt = r#"GEOGCRS["WGS 84",
+        ENSEMBLE["WGS 84 ensemble",
+            MEMBER["WGS 84 (TRANSIT)"],
+            MEMBER["WGS 84 (G730)"],
+            ELLIPSOID["WGS 84",6378137,298.257223563],
+            ENSEMBLEACCURACY[2]],
+        CS[ellipsoidal,2],
+            AXIS["latitude",north],
+            AXIS["longitude",east],
+            ANGLEUNIT["degree",0.0174532925199433],
+        ID["EPSG",4326]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geog_crs().unwrap();
+
+    let Datum::Ensemble(ref ens) = result.datum else {
+        panic!("expected Ensemble");
+    };
+    assert_eq!(ens.members.len(), 2);
+    assert_eq!(result.identifiers.len(), 1);
+    assert_eq!(result.identifiers[0].authority_name, "EPSG");
+}
+
+#[test]
+fn parse_geogcrs_via_parse_crs() {
+    let wkt = r#"GEOGCRS["WGS 84",
+        DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+        CS[ellipsoidal,2],
+            AXIS["latitude",north],
+            AXIS["longitude",east],
+            ANGLEUNIT["degree",0.0174532925199433]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_crs().unwrap();
+    assert!(matches!(result, crate::crs::Crs::GeogCrs(_)));
+}
+
+#[test]
+fn parse_projcrs_via_parse_crs() {
+    let wkt = r#"PROJCRS["test",
+        BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+        CONVERSION["y", METHOD["m"]],
+        CS[Cartesian, 2]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_crs().unwrap();
+    assert!(matches!(result, crate::crs::Crs::ProjectedCrs(_)));
+}
+
+#[test]
+fn parse_geographiccrs_keyword() {
+    let wkt = r#"GEOGRAPHICCRS["WGS 84",
+        DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+        CS[ellipsoidal,2],
+            AXIS["latitude",north],
+            AXIS["longitude",east],
+            ANGLEUNIT["degree",0.0174532925199433]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geog_crs().unwrap();
+    assert_eq!(result.keyword, crate::crs::GeogCrsKeyword::GeographicCrs);
+}

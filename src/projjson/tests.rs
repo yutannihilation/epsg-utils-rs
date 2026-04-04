@@ -1,9 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::parse_wkt2;
+    use crate::{Crs, parse_wkt2};
 
     fn parse_to_projjson(wkt: &str) -> serde_json::Value {
-        parse_wkt2(wkt).unwrap().to_projjson()
+        let Crs::ProjectedCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected ProjectedCrs");
+        };
+        crs.to_projjson()
     }
 
     #[test]
@@ -483,7 +486,9 @@ mod tests {
     /// Note: some fields don't survive the round-trip perfectly (e.g. ORDER,
     /// BEARING, datum keyword), so we compare key semantic fields.
     fn assert_projjson_roundtrip(wkt: &str) {
-        let original = parse_wkt2(wkt).unwrap();
+        let Crs::ProjectedCrs(original) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected ProjectedCrs");
+        };
         let json_str = serde_json::to_string(&original.to_projjson()).unwrap();
         let reparsed = crate::parse_projjson(&json_str)
             .unwrap_or_else(|e| panic!("Failed to parse PROJJSON:\n{json_str}\nError: {e}"));

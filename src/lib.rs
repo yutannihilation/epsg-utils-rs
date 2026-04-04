@@ -8,17 +8,17 @@ mod wkt2;
 mod wkt2_definitions;
 
 pub use crs::{
-    AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType,
-    Datum, DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
-    GeodeticReferenceFrame, Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter,
-    Meridian, PrimeMeridian, ProjectedCrs, RangeMeaning, TemporalExtent, Unit, UnitKeyword, Usage,
-    VerticalExtent,
+    AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, Crs,
+    CsType, Datum, DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid,
+    EnsembleMember, GeodeticReferenceFrame, GeogCrs, GeogCrsKeyword, Identifier, MapProjection,
+    MapProjectionMethod, MapProjectionParameter, Meridian, PrimeMeridian, ProjectedCrs,
+    RangeMeaning, TemporalExtent, Unit, UnitKeyword, Usage, VerticalExtent,
 };
 pub use error::ParseError;
 
-/// Parse a WKT2 string into a [`ProjectedCrs`].
-pub fn parse_wkt2(input: &str) -> Result<ProjectedCrs, ParseError> {
-    wkt2::Parser::new(input).parse_projected_crs()
+/// Parse a WKT2 string into a [`Crs`].
+pub fn parse_wkt2(input: &str) -> Result<Crs, ParseError> {
+    wkt2::Parser::new(input).parse_crs()
 }
 
 /// Parse a PROJJSON string into a [`ProjectedCrs`].
@@ -76,7 +76,9 @@ mod tests {
     fn epsg_to_wkt2_6678() {
         let wkt = epsg_to_wkt2(6678).unwrap();
         assert!(wkt.starts_with("PROJCRS["));
-        let crs = parse_wkt2(wkt).unwrap();
+        let Crs::ProjectedCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected ProjectedCrs");
+        };
         assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
     }
 

@@ -2,8 +2,8 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 
 fn main() {
     let wkt_dir = Path::new("data-raw/EPSG-v12_054-WKT");

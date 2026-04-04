@@ -10,7 +10,7 @@ mod tests {
             .unwrap_or_else(|e| panic!("Failed to re-parse emitted WKT2:\n{emitted}\nError: {e}"));
         assert_eq!(
             parsed, reparsed,
-            "Round-trip mismatch.\nEmitted:\n{emitted}"
+            "Round-trip mismatch.\nOriginal:\n{wkt}\nEmitted:\n{emitted}"
         );
     }
 
@@ -295,6 +295,112 @@ mod tests {
                 BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
                 CONVERSION["y", METHOD["m"]],
                 CS[Cartesian,2,ID["Authority name","Abcd_Ef",7.1]]]"#,
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // GEOGCRS roundtrips
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn roundtrip_geogcrs_minimal() {
+        assert_roundtrip(
+            r#"GEOGCRS["WGS 84",
+                DATUM["World Geodetic System 1984",
+                    ELLIPSOID["WGS 84",6378137,298.257223563]],
+                CS[ellipsoidal,2],
+                    AXIS["latitude",north],
+                    AXIS["longitude",east],
+                    ANGLEUNIT["degree",0.0174532925199433]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geogcrs_with_prime_meridian() {
+        assert_roundtrip(
+            r#"GEOGCRS["NTF (Paris)",
+                DATUM["Nouvelle Triangulation Francaise",
+                    ELLIPSOID["Clarke 1880 (IGN)",6378249.2,293.4660213]],
+                PRIMEM["Paris",2.5969213,ANGLEUNIT["grad",0.015707963267949]],
+                CS[ellipsoidal,2],
+                    AXIS["latitude",north],
+                    AXIS["longitude",east],
+                    ANGLEUNIT["grad",0.015707963267949]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geogcrs_dynamic() {
+        assert_roundtrip(
+            r#"GEOGCRS["ITRF2014",
+                DYNAMIC[FRAMEEPOCH[2010]],
+                TRF["International Terrestrial Reference Frame 2014",
+                    ELLIPSOID["GRS 1980",6378137,298.257222101]],
+                CS[ellipsoidal,3],
+                    AXIS["latitude",north],
+                    AXIS["longitude",east],
+                    AXIS["ellipsoidal height",up],
+                    ANGLEUNIT["degree",0.0174532925199433]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geogcrs_with_ensemble() {
+        assert_roundtrip(
+            r#"GEOGCRS["WGS 84",
+                ENSEMBLE["WGS 84 ensemble",
+                    MEMBER["WGS 84 (TRANSIT)"],
+                    MEMBER["WGS 84 (G730)"],
+                    ELLIPSOID["WGS 84",6378137,298.257223563],
+                    ENSEMBLEACCURACY[2]],
+                CS[ellipsoidal,2],
+                    AXIS["latitude",north],
+                    AXIS["longitude",east],
+                    ANGLEUNIT["degree",0.0174532925199433],
+                ID["EPSG",4326]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geogcrs_with_usage_and_remark() {
+        assert_roundtrip(
+            r#"GEOGCRS["WGS 84",
+                DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+                CS[ellipsoidal,2],
+                    AXIS["latitude",north],
+                    AXIS["longitude",east],
+                    ANGLEUNIT["degree",0.0174532925199433],
+                USAGE[SCOPE["Horizontal component of 3D system"],
+                    AREA["World"],BBOX[-90,-180,90,180]],
+                ID["EPSG",4326],
+                REMARK["WGS 84 geographic 2D"]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geogcrs_datum_with_anchor() {
+        assert_roundtrip(
+            r#"GEOGCRS["Tananarive 1925",
+                GEODETICDATUM["Tananarive 1925",
+                    ELLIPSOID["International 1924",6378388,297,LENGTHUNIT["metre",1]],
+                    ANCHOR["Tananarive observatory"]],
+                PRIMEM["Paris",2.5969213,ANGLEUNIT["grad",0.015707963267949]],
+                CS[ellipsoidal,2],
+                    AXIS["latitude",north],
+                    AXIS["longitude",east],
+                    ANGLEUNIT["grad",0.015707963267949]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geographiccrs_keyword() {
+        assert_roundtrip(
+            r#"GEOGRAPHICCRS["WGS 84",
+                DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+                CS[ellipsoidal,2],
+                    AXIS["latitude",north],
+                    AXIS["longitude",east],
+                    ANGLEUNIT["degree",0.0174532925199433]]"#,
         );
     }
 }

@@ -28,6 +28,60 @@ fn write_quoted(f: &mut Formatter<'_>, s: &str) -> fmt::Result {
 // Top-level CRS
 // ---------------------------------------------------------------------------
 
+impl Display for Crs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Crs::ProjectedCrs(crs) => crs.fmt(f),
+            Crs::GeogCrs(crs) => crs.fmt(f),
+        }
+    }
+}
+
+impl Display for GeogCrsKeyword {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            GeogCrsKeyword::GeogCrs => "GEOGCRS",
+            GeogCrsKeyword::GeographicCrs => "GEOGRAPHICCRS",
+        })
+    }
+}
+
+impl Display for GeogCrs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}[", self.keyword)?;
+        write_quoted(f, &self.name)?;
+
+        if let Some(ref dynamic) = self.dynamic {
+            write!(f, ",{dynamic}")?;
+        }
+
+        match &self.datum {
+            Datum::ReferenceFrame(rf) => {
+                write!(f, ",{rf}")?;
+                if let Some(ref pm) = rf.prime_meridian {
+                    write!(f, ",{pm}")?;
+                }
+            }
+            Datum::Ensemble(ens) => {
+                write!(f, ",{ens}")?;
+                if let Some(ref pm) = ens.prime_meridian {
+                    write!(f, ",{pm}")?;
+                }
+            }
+        }
+
+        write!(f, ",{}", self.coordinate_system)?;
+        write_comma_items(f, &self.usages)?;
+        write_comma_items(f, &self.identifiers)?;
+        if let Some(ref remark) = self.remark {
+            f.write_str(",REMARK[")?;
+            write_quoted(f, remark)?;
+            f.write_char(']')?;
+        }
+        f.write_char(']')
+    }
+}
+
 impl Display for ProjectedCrs {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("PROJCRS[")?;

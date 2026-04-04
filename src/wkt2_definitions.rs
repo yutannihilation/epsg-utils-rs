@@ -22,10 +22,10 @@ static DATA: LazyLock<HashMap<i32, String>> = LazyLock::new(|| {
 
     let mut map = HashMap::new();
     for line in text.lines() {
-        if let Some((code_str, wkt)) = line.split_once('\t') {
-            if let Ok(code) = code_str.parse::<i32>() {
-                map.insert(code, wkt.to_string());
-            }
+        if let Some((code_str, wkt)) = line.split_once('\t')
+            && let Ok(code) = code_str.parse::<i32>()
+        {
+            map.insert(code, wkt.to_string());
         }
     }
     map
