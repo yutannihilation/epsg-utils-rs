@@ -13,7 +13,7 @@ pub struct CoordinateSystem {
     pub dimension: u8,
     pub identifiers: Vec<String>,
     pub axes: Vec<Axis>,
-    pub cs_unit: Option<String>,
+    pub cs_unit: Option<Unit>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -40,7 +40,7 @@ pub struct Axis {
     pub meridian: Option<String>,
     pub bearing: Option<String>,
     pub order: Option<u32>,
-    pub unit: Option<String>,
+    pub unit: Option<Unit>,
     pub identifiers: Vec<String>,
 }
 
@@ -62,7 +62,7 @@ pub struct MapProjectionMethod {
 pub struct MapProjectionParameter {
     pub name: String,
     pub value: f64,
-    pub unit: Option<String>,
+    pub unit: Option<Unit>,
     pub identifiers: Vec<String>,
 }
 
@@ -80,8 +80,8 @@ pub struct BaseGeodeticCrs {
     pub dynamic: Option<DynamicCrs>,
     /// Either a geodetic reference frame or a datum ensemble
     pub datum: Datum,
-    /// Optional ellipsoidal CS unit (ANGLEUNIT[...])
-    pub ellipsoidal_cs_unit: Option<String>,
+    /// Optional ellipsoidal CS unit
+    pub ellipsoidal_cs_unit: Option<Unit>,
     /// Zero or more ID[...] nodes
     pub identifiers: Vec<String>,
 }
@@ -127,7 +127,7 @@ pub struct Ellipsoid {
     pub name: String,
     pub semi_major_axis: f64,
     pub inverse_flattening: f64,
-    pub unit: Option<String>,
+    pub unit: Option<Unit>,
     pub identifiers: Vec<String>,
 }
 
@@ -146,5 +146,25 @@ pub struct DatumEnsemble {
 #[derive(Debug, PartialEq)]
 pub struct EnsembleMember {
     pub name: String,
+    pub identifiers: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum UnitKeyword {
+    AngleUnit,
+    LengthUnit,
+    ParametricUnit,
+    ScaleUnit,
+    TimeUnit,
+    /// Backward-compatible generic UNIT keyword
+    Unit,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Unit {
+    pub keyword: UnitKeyword,
+    pub name: String,
+    /// Conversion factor to SI base unit. Optional only for TIMEUNIT.
+    pub conversion_factor: Option<f64>,
     pub identifiers: Vec<String>,
 }

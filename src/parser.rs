@@ -3,7 +3,7 @@ use crate::wkt2::{
     Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum, DatumEnsemble,
     DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
     GeodeticReferenceFrame, MapProjection, MapProjectionMethod, MapProjectionParameter,
-    ProjectedCrs,
+    ProjectedCrs, Unit, UnitKeyword,
 };
 
 pub struct Parser<'a> {
@@ -77,8 +77,8 @@ impl<'a> Parser<'a> {
                 Some("AXIS") => {
                     axes.push(self.parse_axis()?);
                 }
-                Some("LENGTHUNIT" | "ANGLEUNIT" | "SCALEUNIT" | "PARAMETRICUNIT" | "TIMEUNIT") => {
-                    cs_unit = Some(self.parse_bracketed_node()?);
+                Some(kw) if Self::is_unit_keyword(kw) => {
+                    cs_unit = Some(self.parse_unit()?);
                 }
                 _ => {
                     scope_extent_identifier_remark.push(self.parse_bracketed_node()?);
@@ -230,8 +230,8 @@ impl<'a> Parser<'a> {
             self.skip_whitespace();
 
             match self.peek_keyword().as_deref() {
-                Some("ANGLEUNIT" | "LENGTHUNIT" | "SCALEUNIT") => {
-                    unit = Some(self.parse_bracketed_node()?);
+                Some(kw) if Self::is_unit_keyword(kw) => {
+                    unit = Some(self.parse_unit()?);
                 }
                 Some("ID") => {
                     identifiers.push(self.parse_bracketed_node()?);
@@ -397,8 +397,8 @@ impl<'a> Parser<'a> {
                 Some("ORDER") => {
                     order = Some(self.parse_order()?);
                 }
-                Some("LENGTHUNIT" | "ANGLEUNIT" | "SCALEUNIT" | "PARAMETRICUNIT" | "TIMEUNIT") => {
-                    unit = Some(self.parse_bracketed_node()?);
+                Some(kw) if Self::is_unit_keyword(kw) => {
+                    unit = Some(self.parse_unit()?);
                 }
                 Some("ID") => {
                     identifiers.push(self.parse_bracketed_node()?);
@@ -511,8 +511,8 @@ impl<'a> Parser<'a> {
                         Datum::Ensemble(ens) => ens.prime_meridian = Some(pm),
                     }
                 }
-                Some("ANGLEUNIT") => {
-                    ellipsoidal_cs_unit = Some(self.parse_bracketed_node()?);
+                Some(kw) if Self::is_unit_keyword(kw) => {
+                    ellipsoidal_cs_unit = Some(self.parse_unit()?);
                 }
                 Some("ID") => {
                     identifiers.push(self.parse_bracketed_node()?);
@@ -781,6 +781,73 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_unit(&mut self) -> Result<Unit, ParseError> {
+        let keyword_str = self.parse_keyword()?;
+        let keyword = match keyword_str.as_str() {
+            "ANGLEUNIT" => UnitKeyword::AngleUnit,
+            "LENGTHUNIT" => UnitKeyword::LengthUnit,
+            "PARAMETRICUNIT" => UnitKeyword::ParametricUnit,
+            "SCALEUNIT" => UnitKeyword::ScaleUnit,
+            "TIMEUNIT" | "TEMPORALQUANTITY" => UnitKeyword::TimeUnit,
+            "UNIT" => UnitKeyword::Unit,
+            _ => {
+                return Err(ParseError::ExpectedKeyword {
+                    pos: self.pos - keyword_str.len(),
+                });
+            }
+        };
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <unit name>
+        self.skip_whitespace();
+        let name = self.parse_quoted_string()?;
+
+        // Optional conversion factor and identifiers
+        let mut conversion_factor = None;
+        let mut identifiers = Vec::new();
+
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            // If the next char starts a keyword (uppercase), it's an ID node
+            if self.peek_keyword().is_some() {
+                identifiers.push(self.parse_bracketed_node()?);
+            } else {
+                // It's a number (conversion factor)
+                conversion_factor = Some(self.parse_number()?);
+            }
+        }
+
+        self.expect_char(']')?;
+
+        Ok(Unit {
+            keyword,
+            name,
+            conversion_factor,
+            identifiers,
+        })
+    }
+
+    fn is_unit_keyword(keyword: &str) -> bool {
+        matches!(
+            keyword,
+            "ANGLEUNIT"
+                | "LENGTHUNIT"
+                | "PARAMETRICUNIT"
+                | "SCALEUNIT"
+                | "TIMEUNIT"
+                | "TEMPORALQUANTITY"
+                | "UNIT"
+        )
+    }
+
     fn parse_ellipsoid(&mut self) -> Result<Ellipsoid, ParseError> {
         let keyword = self.parse_keyword()?;
         if keyword != "ELLIPSOID" && keyword != "SPHEROID" {
@@ -821,8 +888,8 @@ impl<'a> Parser<'a> {
             self.skip_whitespace();
 
             match self.peek_keyword().as_deref() {
-                Some("LENGTHUNIT") => {
-                    unit = Some(self.parse_bracketed_node()?);
+                Some(kw) if Self::is_unit_keyword(kw) => {
+                    unit = Some(self.parse_unit()?);
                 }
                 Some("ID") => {
                     identifiers.push(self.parse_bracketed_node()?);
@@ -980,7 +1047,10 @@ mod tests {
         assert_eq!(cs.axes[1].name_abbrev, "northing (N)");
         assert_eq!(cs.axes[1].direction, "north");
         assert_eq!(cs.axes[1].order, Some(2));
-        assert!(cs.cs_unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
+        let cs_unit = cs.cs_unit.as_ref().unwrap();
+        assert_eq!(cs_unit.keyword, UnitKeyword::LengthUnit);
+        assert_eq!(cs_unit.name, "metre");
+        assert_eq!(cs_unit.conversion_factor, Some(1.0));
     }
 
     #[test]
@@ -997,8 +1067,8 @@ mod tests {
 
         let cs = &result.coordinate_system;
         assert_eq!(cs.axes.len(), 2);
-        assert!(cs.axes[0].unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
-        assert!(cs.axes[1].unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
+        assert_eq!(cs.axes[0].unit.as_ref().unwrap().keyword, UnitKeyword::LengthUnit);
+        assert_eq!(cs.axes[1].unit.as_ref().unwrap().keyword, UnitKeyword::LengthUnit);
         assert!(cs.cs_unit.is_none());
     }
 
@@ -1018,7 +1088,7 @@ mod tests {
         assert_eq!(cs.cs_type, CsType::Ellipsoidal);
         assert_eq!(cs.dimension, 2);
         assert_eq!(cs.axes[0].direction, "north");
-        assert!(cs.axes[0].unit.as_ref().unwrap().starts_with("ANGLEUNIT["));
+        assert_eq!(cs.axes[0].unit.as_ref().unwrap().keyword, UnitKeyword::AngleUnit);
     }
 
     #[test]
@@ -1139,13 +1209,9 @@ mod tests {
         let result = parser.parse_projected_crs().unwrap();
 
         let base = &result.base_geodetic_crs;
-        assert!(base.ellipsoidal_cs_unit.is_some());
-        assert!(
-            base.ellipsoidal_cs_unit
-                .as_ref()
-                .unwrap()
-                .starts_with("ANGLEUNIT[")
-        );
+        let eu = base.ellipsoidal_cs_unit.as_ref().unwrap();
+        assert_eq!(eu.keyword, UnitKeyword::AngleUnit);
+        assert_eq!(eu.name, "degree");
         assert_eq!(base.identifiers.len(), 1);
         assert!(base.identifiers[0].starts_with("ID["));
     }
@@ -1225,7 +1291,7 @@ mod tests {
         assert_eq!(rf.ellipsoid.name, "International 1924");
         assert_eq!(rf.ellipsoid.semi_major_axis, 6378388.0);
         assert_eq!(rf.ellipsoid.inverse_flattening, 297.0);
-        assert!(rf.ellipsoid.unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
+        assert_eq!(rf.ellipsoid.unit.as_ref().unwrap().keyword, UnitKeyword::LengthUnit);
         assert_eq!(
             rf.anchor.as_deref(),
             Some("Tananarive observatory:21.0191667gS, 50.23849537gE of Paris")
@@ -1302,12 +1368,9 @@ mod tests {
 
         assert_eq!(proj.parameters[0].name, "Latitude of natural origin");
         assert_eq!(proj.parameters[0].value, 0.0);
-        assert!(
-            proj.parameters[0]
-                .unit
-                .as_ref()
-                .unwrap()
-                .starts_with("ANGLEUNIT[")
+        assert_eq!(
+            proj.parameters[0].unit.as_ref().unwrap().keyword,
+            UnitKeyword::AngleUnit
         );
         assert_eq!(proj.parameters[0].identifiers.len(), 1);
 
@@ -1316,22 +1379,16 @@ mod tests {
 
         assert_eq!(proj.parameters[2].name, "Scale factor at natural origin");
         assert_eq!(proj.parameters[2].value, 0.9996);
-        assert!(
-            proj.parameters[2]
-                .unit
-                .as_ref()
-                .unwrap()
-                .starts_with("SCALEUNIT[")
+        assert_eq!(
+            proj.parameters[2].unit.as_ref().unwrap().keyword,
+            UnitKeyword::ScaleUnit
         );
 
         assert_eq!(proj.parameters[3].name, "False easting");
         assert_eq!(proj.parameters[3].value, 500000.0);
-        assert!(
-            proj.parameters[3]
-                .unit
-                .as_ref()
-                .unwrap()
-                .starts_with("LENGTHUNIT[")
+        assert_eq!(
+            proj.parameters[3].unit.as_ref().unwrap().keyword,
+            UnitKeyword::LengthUnit
         );
 
         assert_eq!(proj.parameters[4].name, "False northing");
