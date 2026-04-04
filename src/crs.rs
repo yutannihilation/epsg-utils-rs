@@ -9,6 +9,8 @@ pub enum Crs {
     GeogCrs(Box<GeogCrs>),
     /// A geodetic CRS (WKT2 keyword: `GEODCRS`).
     GeodCrs(Box<GeodCrs>),
+    /// A vertical CRS (WKT2 keyword: `VERTCRS`).
+    VertCrs(Box<VertCrs>),
 }
 
 impl Crs {
@@ -25,6 +27,7 @@ impl Crs {
             Crs::ProjectedCrs(crs) => crs.to_epsg(),
             Crs::GeogCrs(crs) => crs.to_epsg(),
             Crs::GeodCrs(crs) => crs.to_epsg(),
+            Crs::VertCrs(crs) => crs.to_epsg(),
         }
     }
 }
@@ -123,6 +126,105 @@ impl GeodCrs {
             None
         })
     }
+}
+
+/// The keyword used for a vertical CRS.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VertCrsKeyword {
+    /// `VERTCRS` -- the preferred keyword.
+    VertCrs,
+    /// `VERTICALCRS` -- the long form.
+    VerticalCrs,
+}
+
+/// A vertical coordinate reference system (VERTCRS).
+///
+/// A vertical CRS uses a vertical coordinate system (height or depth).
+///
+/// WKT2 keywords: `VERTCRS` (preferred), `VERTICALCRS`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VertCrs {
+    /// Which keyword was used in the WKT.
+    pub keyword: VertCrsKeyword,
+    /// The name of the vertical CRS (e.g. "NAVD88").
+    pub name: String,
+    /// Present only if the CRS is dynamic (has a time-varying reference frame).
+    pub dynamic: Option<DynamicCrs>,
+    /// The datum: either a vertical reference frame or a datum ensemble.
+    pub datum: VerticalDatum,
+    /// The coordinate system describing axes, their directions, and units.
+    pub coordinate_system: CoordinateSystem,
+    /// Zero or more geoid model references.
+    pub geoid_models: Vec<GeoidModel>,
+    /// Zero or more scope-extent pairings describing the applicability of this CRS.
+    pub usages: Vec<Usage>,
+    /// Zero or more external identifiers referencing this CRS.
+    pub identifiers: Vec<Identifier>,
+    /// An optional free-text remark about this CRS.
+    pub remark: Option<String>,
+}
+
+impl VertCrs {
+    /// Extract the EPSG code from this CRS's identifiers, if present.
+    pub fn to_epsg(&self) -> Option<i32> {
+        self.identifiers.iter().find_map(|id| {
+            if id.authority_name == "EPSG"
+                && let AuthorityId::Number(n) = id.authority_unique_id
+            {
+                return Some(n as i32);
+            }
+            None
+        })
+    }
+}
+
+/// A vertical datum is either a vertical reference frame or a datum ensemble.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VerticalDatum {
+    /// A single vertical reference frame.
+    ReferenceFrame(VerticalReferenceFrame),
+    /// An ensemble of vertical reference frames.
+    Ensemble(Box<DatumEnsemble>),
+}
+
+/// The keyword used for a vertical reference frame.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VerticalReferenceFrameKeyword {
+    /// `VDATUM` -- the preferred keyword.
+    VDatum,
+    /// `VRF` -- vertical reference frame.
+    Vrf,
+    /// `VERTICALDATUM` -- the fully spelled-out form.
+    VerticalDatum,
+}
+
+/// A vertical reference frame (vertical datum).
+///
+/// WKT2 keywords: `VDATUM` (preferred), `VRF`, `VERTICALDATUM`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VerticalReferenceFrame {
+    /// Which keyword was used in the WKT.
+    pub keyword: VerticalReferenceFrameKeyword,
+    /// The datum name (e.g. "North American Vertical Datum 1988").
+    pub name: String,
+    /// A textual description of the datum anchor point.
+    pub anchor: Option<String>,
+    /// The epoch at which a derived static reference frame is aligned to its parent
+    /// dynamic frame.
+    pub anchor_epoch: Option<f64>,
+    /// Identifiers for this datum.
+    pub identifiers: Vec<Identifier>,
+}
+
+/// A reference to a geoid model associated with a vertical CRS.
+///
+/// WKT2 keyword: `GEOIDMODEL`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeoidModel {
+    /// The name of the geoid model.
+    pub name: String,
+    /// Identifiers for this geoid model.
+    pub identifiers: Vec<Identifier>,
 }
 
 /// A projected coordinate reference system (PROJCRS).

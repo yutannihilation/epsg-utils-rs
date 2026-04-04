@@ -34,6 +34,7 @@ impl Display for Crs {
             Crs::ProjectedCrs(crs) => crs.fmt(f),
             Crs::GeogCrs(crs) => crs.fmt(f),
             Crs::GeodCrs(crs) => crs.fmt(f),
+            Crs::VertCrs(crs) => crs.fmt(f),
         }
     }
 }
@@ -124,6 +125,78 @@ impl Display for GeodCrs {
             write_quoted(f, remark)?;
             f.write_char(']')?;
         }
+        f.write_char(']')
+    }
+}
+
+impl Display for VertCrsKeyword {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            VertCrsKeyword::VertCrs => "VERTCRS",
+            VertCrsKeyword::VerticalCrs => "VERTICALCRS",
+        })
+    }
+}
+
+impl Display for VertCrs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}[", self.keyword)?;
+        write_quoted(f, &self.name)?;
+
+        if let Some(ref dynamic) = self.dynamic {
+            write!(f, ",{dynamic}")?;
+        }
+
+        match &self.datum {
+            VerticalDatum::ReferenceFrame(rf) => write!(f, ",{rf}")?,
+            VerticalDatum::Ensemble(ens) => write!(f, ",{ens}")?,
+        }
+
+        write!(f, ",{}", self.coordinate_system)?;
+        write_comma_items(f, &self.geoid_models)?;
+        write_comma_items(f, &self.usages)?;
+        write_comma_items(f, &self.identifiers)?;
+        if let Some(ref remark) = self.remark {
+            f.write_str(",REMARK[")?;
+            write_quoted(f, remark)?;
+            f.write_char(']')?;
+        }
+        f.write_char(']')
+    }
+}
+
+impl Display for VerticalReferenceFrameKeyword {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            VerticalReferenceFrameKeyword::VDatum => "VDATUM",
+            VerticalReferenceFrameKeyword::Vrf => "VRF",
+            VerticalReferenceFrameKeyword::VerticalDatum => "VERTICALDATUM",
+        })
+    }
+}
+
+impl Display for VerticalReferenceFrame {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}[", self.keyword)?;
+        write_quoted(f, &self.name)?;
+        if let Some(ref anchor) = self.anchor {
+            f.write_str(",ANCHOR[")?;
+            write_quoted(f, anchor)?;
+            f.write_char(']')?;
+        }
+        if let Some(epoch) = self.anchor_epoch {
+            write!(f, ",ANCHOREPOCH[{epoch}]")?;
+        }
+        write_comma_items(f, &self.identifiers)?;
+        f.write_char(']')
+    }
+}
+
+impl Display for GeoidModel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("GEOIDMODEL[")?;
+        write_quoted(f, &self.name)?;
+        write_comma_items(f, &self.identifiers)?;
         f.write_char(']')
     }
 }

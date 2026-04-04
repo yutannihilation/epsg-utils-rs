@@ -11,9 +11,10 @@ pub use crs::{
     AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, Crs,
     CsType, Datum, DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid,
     EnsembleMember, GeodCrs, GeodCrsKeyword, GeodeticReferenceFrame, GeogCrs, GeogCrsKeyword,
-    Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter, Meridian,
-    PrimeMeridian, ProjectedCrs, RangeMeaning, TemporalExtent, Unit, UnitKeyword, Usage,
-    VerticalExtent,
+    GeoidModel, Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter, Meridian,
+    PrimeMeridian, ProjectedCrs, RangeMeaning, TemporalExtent, Unit, UnitKeyword, Usage, VertCrs,
+    VertCrsKeyword, VerticalDatum, VerticalExtent, VerticalReferenceFrame,
+    VerticalReferenceFrameKeyword,
 };
 pub use error::ParseError;
 

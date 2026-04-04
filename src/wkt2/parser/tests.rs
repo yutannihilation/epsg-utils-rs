@@ -898,3 +898,106 @@ fn parse_geodcrs_dynamic() {
         2010.0
     );
 }
+
+// ---------------------------------------------------------------------------
+// VERTCRS parsing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn parse_vertcrs_static() {
+    let wkt = r#"VERTCRS["NAVD88",
+        VDATUM["North American Vertical Datum 1988"],
+        CS[vertical,1],
+            AXIS["gravity-related height (H)",up],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_vert_crs().unwrap();
+
+    assert_eq!(result.keyword, crate::crs::VertCrsKeyword::VertCrs);
+    assert_eq!(result.name, "NAVD88");
+    assert!(result.dynamic.is_none());
+    let crate::crs::VerticalDatum::ReferenceFrame(ref rf) = result.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    assert_eq!(
+        rf.keyword,
+        crate::crs::VerticalReferenceFrameKeyword::VDatum
+    );
+    assert_eq!(rf.name, "North American Vertical Datum 1988");
+    assert_eq!(result.coordinate_system.cs_type, CsType::Vertical);
+    assert_eq!(result.coordinate_system.dimension, 1);
+    assert!(result.geoid_models.is_empty());
+}
+
+#[test]
+fn parse_vertcrs_with_geoid_model() {
+    let wkt = r#"VERTCRS["CGVD2013",
+        VRF["Canadian Geodetic Vertical Datum of 2013"],
+        CS[vertical,1],
+            AXIS["gravity-related height (H)",up],
+            LENGTHUNIT["metre",1],
+        GEOIDMODEL["CGG2013",ID["EPSG",6648]]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_vert_crs().unwrap();
+
+    assert_eq!(result.geoid_models.len(), 1);
+    assert_eq!(result.geoid_models[0].name, "CGG2013");
+    assert_eq!(result.geoid_models[0].identifiers.len(), 1);
+    let crate::crs::VerticalDatum::ReferenceFrame(ref rf) = result.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    assert_eq!(rf.keyword, crate::crs::VerticalReferenceFrameKeyword::Vrf);
+}
+
+#[test]
+fn parse_vertcrs_dynamic() {
+    let wkt = r#"VERTCRS["RH2000",
+        DYNAMIC[FRAMEEPOCH[2000],MODEL["NKG2016LU"]],
+        VDATUM["Rikets Hojdsystem 2000"],
+        CS[vertical,1],
+            AXIS["gravity-related height (H)",up],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_vert_crs().unwrap();
+
+    let d = result.dynamic.as_ref().unwrap();
+    assert_eq!(d.frame_reference_epoch, 2000.0);
+    assert_eq!(d.deformation_model.as_ref().unwrap().name, "NKG2016LU");
+}
+
+#[test]
+fn parse_vertcrs_with_anchor() {
+    let wkt = r#"VERTCRS["test",
+        VERTICALDATUM["Newlyn",ANCHOR["Mean Sea Level 1915 to 1921."]],
+        CS[vertical,1],
+            AXIS["gravity-related height (H)",up],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_vert_crs().unwrap();
+
+    let crate::crs::VerticalDatum::ReferenceFrame(ref rf) = result.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    assert_eq!(
+        rf.keyword,
+        crate::crs::VerticalReferenceFrameKeyword::VerticalDatum
+    );
+    assert_eq!(rf.anchor.as_deref(), Some("Mean Sea Level 1915 to 1921."));
+}
+
+#[test]
+fn parse_vertcrs_via_parse_crs() {
+    let wkt = r#"VERTCRS["NAVD88",
+        VDATUM["North American Vertical Datum 1988"],
+        CS[vertical,1],
+            AXIS["gravity-related height (H)",up],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_crs().unwrap();
+    assert!(matches!(result, crate::crs::Crs::VertCrs(_)));
+}

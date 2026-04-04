@@ -464,4 +464,76 @@ mod tests {
                 ID["EPSG",4978]]"#,
         );
     }
+
+    // -----------------------------------------------------------------------
+    // VERTCRS roundtrips
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn roundtrip_vertcrs_minimal() {
+        assert_roundtrip(
+            r#"VERTCRS["NAVD88",
+                VDATUM["North American Vertical Datum 1988"],
+                CS[vertical,1],
+                    AXIS["gravity-related height (H)",up],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_vertcrs_with_geoid_model() {
+        assert_roundtrip(
+            r#"VERTCRS["CGVD2013",
+                VRF["Canadian Geodetic Vertical Datum of 2013"],
+                CS[vertical,1],
+                    AXIS["gravity-related height (H)",up],
+                    LENGTHUNIT["metre",1],
+                GEOIDMODEL["CGG2013",ID["EPSG",6648]]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_vertcrs_dynamic() {
+        assert_roundtrip(
+            r#"VERTCRS["RH2000",
+                DYNAMIC[FRAMEEPOCH[2000],MODEL["NKG2016LU"]],
+                VDATUM["Rikets Hojdsystem 2000"],
+                CS[vertical,1],
+                    AXIS["gravity-related height (H)",up],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_vertcrs_with_anchor() {
+        assert_roundtrip(
+            r#"VERTCRS["test",
+                VERTICALDATUM["Newlyn",ANCHOR["Mean Sea Level 1915 to 1921."]],
+                CS[vertical,1],
+                    AXIS["gravity-related height (H)",up],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_verticalcrs_keyword() {
+        assert_roundtrip(
+            r#"VERTICALCRS["NAVD88",
+                VDATUM["North American Vertical Datum 1988"],
+                CS[vertical,1],
+                    AXIS["gravity-related height (H)",up],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_vertcrs_with_anchor_epoch() {
+        assert_roundtrip(
+            r#"VERTCRS["test",
+                VRF["test datum",ANCHOREPOCH[2002]],
+                CS[vertical,1],
+                    AXIS["gravity-related height (H)",up],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
 }

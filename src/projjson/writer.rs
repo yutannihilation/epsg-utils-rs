@@ -18,6 +18,7 @@ impl Crs {
             Crs::ProjectedCrs(crs) => crs.to_projjson(),
             Crs::GeogCrs(crs) => crs.to_projjson(),
             Crs::GeodCrs(crs) => crs.to_projjson(),
+            Crs::VertCrs(crs) => crs.to_projjson(),
         }
     }
 }
@@ -131,6 +132,64 @@ impl GeodCrs {
     }
 }
 
+impl VertCrs {
+    /// Serialize this vertical CRS to a PROJJSON `serde_json::Value`.
+    pub fn to_projjson(&self) -> Value {
+        let mut obj = Map::new();
+        insert_schema(&mut obj);
+        obj.insert("type".into(), json!("VerticalCRS"));
+        obj.insert("name".into(), json!(self.name));
+
+        match &self.datum {
+            VerticalDatum::ReferenceFrame(rf) => {
+                obj.insert(
+                    "datum".into(),
+                    vertical_datum_to_json(rf, self.dynamic.as_ref()),
+                );
+            }
+            VerticalDatum::Ensemble(ens) => {
+                obj.insert("datum_ensemble".into(), ensemble_to_json(ens));
+            }
+        }
+
+        if let Some(ref dynamic) = self.dynamic
+            && let Some(ref model) = dynamic.deformation_model
+        {
+            let mut m = Map::new();
+            m.insert("name".into(), json!(model.name));
+            insert_ids(&mut m, &model.identifiers);
+            obj.insert("deformation_models".into(), json!([Value::Object(m)]));
+        }
+
+        obj.insert(
+            "coordinate_system".into(),
+            cs_to_json(&self.coordinate_system),
+        );
+
+        if !self.geoid_models.is_empty() {
+            let models: Vec<Value> = self
+                .geoid_models
+                .iter()
+                .map(|gm| {
+                    let mut m = Map::new();
+                    m.insert("name".into(), json!(gm.name));
+                    insert_ids(&mut m, &gm.identifiers);
+                    Value::Object(m)
+                })
+                .collect();
+            obj.insert("geoid_models".into(), Value::Array(models));
+        }
+
+        insert_usages(&mut obj, &self.usages);
+        if let Some(ref remark) = self.remark {
+            obj.insert("remarks".into(), json!(remark));
+        }
+        insert_ids(&mut obj, &self.identifiers);
+
+        Value::Object(obj)
+    }
+}
+
 fn insert_schema(obj: &mut Map<String, Value>) {
     obj.insert(
         "$schema".into(),
@@ -210,6 +269,33 @@ fn datum_to_json(rf: &GeodeticReferenceFrame, dynamic: Option<&DynamicCrs>) -> V
 
     if let Some(ref pm) = rf.prime_meridian {
         obj.insert("prime_meridian".into(), prime_meridian_to_json(pm));
+    }
+
+    insert_ids(&mut obj, &rf.identifiers);
+
+    Value::Object(obj)
+}
+
+fn vertical_datum_to_json(rf: &VerticalReferenceFrame, dynamic: Option<&DynamicCrs>) -> Value {
+    let mut obj = Map::new();
+
+    if let Some(dyn_crs) = dynamic {
+        obj.insert("type".into(), json!("DynamicVerticalReferenceFrame"));
+        obj.insert(
+            "frame_reference_epoch".into(),
+            json!(dyn_crs.frame_reference_epoch),
+        );
+    } else {
+        obj.insert("type".into(), json!("VerticalReferenceFrame"));
+    }
+
+    obj.insert("name".into(), json!(rf.name));
+
+    if let Some(ref anchor) = rf.anchor {
+        obj.insert("anchor".into(), json!(anchor));
+    }
+    if let Some(epoch) = rf.anchor_epoch {
+        obj.insert("anchor_epoch".into(), json!(epoch));
     }
 
     insert_ids(&mut obj, &rf.identifiers);

@@ -1,6 +1,7 @@
 use crate::crs::{
     BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, Crs, Datum, GeodCrs, GeodCrsKeyword,
-    GeogCrs, GeogCrsKeyword, ProjectedCrs,
+    GeogCrs, GeogCrsKeyword, GeoidModel, ProjectedCrs, VertCrs, VertCrsKeyword, VerticalDatum,
+    VerticalReferenceFrame, VerticalReferenceFrameKeyword,
 };
 use crate::error::ParseError;
 
@@ -16,6 +17,9 @@ impl<'a> Parser<'a> {
             }
             Some("GEODCRS") | Some("GEODETICCRS") => {
                 Ok(Crs::GeodCrs(Box::new(self.parse_geod_crs()?)))
+            }
+            Some("VERTCRS") | Some("VERTICALCRS") => {
+                Ok(Crs::VertCrs(Box::new(self.parse_vert_crs()?)))
             }
             _ => {
                 // Consume the keyword so we can report it
@@ -352,6 +356,168 @@ impl<'a> Parser<'a> {
             usages,
             identifiers,
             remark,
+        })
+    }
+
+    pub fn parse_vert_crs(&mut self) -> Result<VertCrs, ParseError> {
+        self.skip_whitespace();
+        let keyword_str = self.parse_keyword()?;
+        let keyword = match keyword_str.as_str() {
+            "VERTCRS" => VertCrsKeyword::VertCrs,
+            "VERTICALCRS" => VertCrsKeyword::VerticalCrs,
+            _ => {
+                return Err(ParseError::ExpectedKeyword {
+                    pos: self.pos - keyword_str.len(),
+                });
+            }
+        };
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        self.skip_whitespace();
+        let name = self.parse_quoted_string()?;
+
+        // DYNAMIC or VDATUM/ENSEMBLE
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+
+        let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
+            let d = self.parse_dynamic_crs()?;
+            self.skip_whitespace();
+            self.expect_char(',')?;
+            self.skip_whitespace();
+            Some(d)
+        } else {
+            None
+        };
+
+        let datum = match self.peek_keyword().as_deref() {
+            Some("ENSEMBLE") => VerticalDatum::Ensemble(Box::new(self.parse_datum_ensemble()?)),
+            _ => VerticalDatum::ReferenceFrame(self.parse_vertical_reference_frame()?),
+        };
+
+        // Coordinate system
+        let (cs_type, dimension, cs_identifiers) = self.comma_then(|p| p.parse_cs_header())?;
+
+        let mut axes = Vec::new();
+        let mut cs_unit = None;
+        let mut geoid_models = Vec::new();
+        let mut usages = Vec::new();
+        let mut identifiers = Vec::new();
+        let mut remark = None;
+
+        self.trailing_items(|p, kw| match kw {
+            "AXIS" => {
+                axes.push(p.parse_axis()?);
+                Ok(())
+            }
+            kw if Self::is_unit_keyword(kw) => {
+                cs_unit = Some(p.parse_unit()?);
+                Ok(())
+            }
+            "GEOIDMODEL" => {
+                let (_, model) = p.bracketed(&["GEOIDMODEL"], |p| {
+                    let name = p.parse_quoted_string()?;
+                    let identifiers = p.trailing_identifiers()?;
+                    Ok(GeoidModel { name, identifiers })
+                })?;
+                geoid_models.push(model);
+                Ok(())
+            }
+            "USAGE" => {
+                usages.push(p.parse_usage()?);
+                Ok(())
+            }
+            "ID" => {
+                identifiers.push(p.parse_identifier_node()?);
+                Ok(())
+            }
+            "REMARK" => {
+                remark = Some(p.parse_remark()?);
+                Ok(())
+            }
+            _ => {
+                p.parse_bracketed_node()?;
+                Ok(())
+            }
+        })?;
+
+        let coordinate_system = CoordinateSystem {
+            cs_type,
+            dimension,
+            identifiers: cs_identifiers,
+            axes,
+            cs_unit,
+        };
+
+        self.expect_char(']')?;
+
+        self.skip_whitespace();
+        if self.pos < self.input.len() {
+            return Err(ParseError::TrailingInput { pos: self.pos });
+        }
+
+        Ok(VertCrs {
+            keyword,
+            name,
+            dynamic,
+            datum,
+            coordinate_system,
+            geoid_models,
+            usages,
+            identifiers,
+            remark,
+        })
+    }
+
+    pub(crate) fn parse_vertical_reference_frame(
+        &mut self,
+    ) -> Result<VerticalReferenceFrame, ParseError> {
+        let (kw_str, (name, anchor, anchor_epoch, identifiers)) =
+            self.bracketed(&["VDATUM", "VRF", "VERTICALDATUM"], |p| {
+                let name = p.parse_quoted_string()?;
+
+                let mut anchor = None;
+                let mut anchor_epoch = None;
+                let mut identifiers = Vec::new();
+
+                p.trailing_items(|p, kw| match kw {
+                    "ANCHOR" => {
+                        anchor = Some(p.parse_keyword_quoted_string("ANCHOR")?);
+                        Ok(())
+                    }
+                    "ANCHOREPOCH" => {
+                        anchor_epoch = Some(p.parse_keyword_number("ANCHOREPOCH")?);
+                        Ok(())
+                    }
+                    "ID" => {
+                        identifiers.push(p.parse_identifier_node()?);
+                        Ok(())
+                    }
+                    _ => {
+                        p.parse_bracketed_node()?;
+                        Ok(())
+                    }
+                })?;
+
+                Ok((name, anchor, anchor_epoch, identifiers))
+            })?;
+
+        let keyword = match kw_str.as_str() {
+            "VDATUM" => VerticalReferenceFrameKeyword::VDatum,
+            "VRF" => VerticalReferenceFrameKeyword::Vrf,
+            "VERTICALDATUM" => VerticalReferenceFrameKeyword::VerticalDatum,
+            _ => unreachable!(),
+        };
+
+        Ok(VerticalReferenceFrame {
+            keyword,
+            name,
+            anchor,
+            anchor_epoch,
+            identifiers,
         })
     }
 
