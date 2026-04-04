@@ -29,10 +29,10 @@ impl ProjectedCrs {
     /// and a numeric code, or `None` otherwise.
     pub fn to_epsg(&self) -> Option<i32> {
         self.identifiers.iter().find_map(|id| {
-            if id.authority_name == "EPSG" {
-                if let AuthorityId::Number(n) = id.authority_unique_id {
-                    return Some(n as i32);
-                }
+            if id.authority_name == "EPSG"
+                && let AuthorityId::Number(n) = id.authority_unique_id
+            {
+                return Some(n as i32);
             }
             None
         })

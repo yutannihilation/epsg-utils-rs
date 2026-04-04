@@ -7,8 +7,10 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-wkt2-definitions = []
-projjson-definitions = []
+default = ["wkt2-definitions", "projjson-definitions"]
+wkt2-definitions = ["dep:flate2"]
+projjson-definitions = ["dep:flate2"]
 
 [dependencies]
+flate2 = { version = "1.1.9", optional = true }
 serde_json = "1"

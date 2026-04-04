@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 epsg-utils = { path = ".." }
+flate2 = "1.1.9"
 serde_json = "1"
