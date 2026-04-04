@@ -136,7 +136,15 @@ pub struct GeodeticReferenceFrame {
     pub anchor: Option<String>,
     pub anchor_epoch: Option<f64>,
     pub identifiers: Vec<Identifier>,
-    pub prime_meridian: Option<String>,
+    pub prime_meridian: Option<PrimeMeridian>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct PrimeMeridian {
+    pub name: String,
+    pub irm_longitude: f64,
+    pub unit: Option<Unit>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -157,7 +165,7 @@ pub struct DatumEnsemble {
     pub accuracy: f64,
     pub identifiers: Vec<Identifier>,
     /// Present for geodetic datum ensembles (sibling after ENSEMBLE[...])
-    pub prime_meridian: Option<String>,
+    pub prime_meridian: Option<PrimeMeridian>,
 }
 
 #[derive(Debug, PartialEq)]

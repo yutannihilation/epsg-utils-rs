@@ -3,7 +3,7 @@ use crate::wkt2::{
     AuthorityId, Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum,
     DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
     GeodeticReferenceFrame, Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter,
-    Meridian, ProjectedCrs, RangeMeaning, Unit, UnitKeyword, Usage,
+    Meridian, PrimeMeridian, ProjectedCrs, RangeMeaning, Unit, UnitKeyword, Usage,
 };
 
 pub struct Parser<'a> {
@@ -704,8 +704,8 @@ impl<'a> Parser<'a> {
             self.skip_whitespace();
 
             match self.peek_keyword().as_deref() {
-                Some("PRIMEM") => {
-                    let pm = self.parse_bracketed_node()?;
+                Some("PRIMEM" | "PRIMEMERIDIAN") => {
+                    let pm = self.parse_prime_meridian()?;
                     match &mut datum {
                         Datum::ReferenceFrame(rf) => rf.prime_meridian = Some(pm),
                         Datum::Ensemble(ens) => ens.prime_meridian = Some(pm),
@@ -1049,6 +1049,63 @@ impl<'a> Parser<'a> {
                 | "TEMPORALQUANTITY"
                 | "UNIT"
         )
+    }
+
+    fn parse_prime_meridian(&mut self) -> Result<PrimeMeridian, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "PRIMEM" && keyword != "PRIMEMERIDIAN" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <prime meridian name>
+        self.skip_whitespace();
+        let name = self.parse_quoted_string()?;
+
+        // <irm longitude>
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let irm_longitude = self.parse_number()?;
+
+        // Optional angle unit and identifiers
+        let mut unit = None;
+        let mut identifiers = Vec::new();
+
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            match self.peek_keyword().as_deref() {
+                Some(kw) if Self::is_unit_keyword(kw) => {
+                    unit = Some(self.parse_unit()?);
+                }
+                Some("ID") => {
+                    identifiers.push(self.parse_identifier_node()?);
+                }
+                _ => {
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
+                }
+            }
+        }
+
+        self.expect_char(']')?;
+
+        Ok(PrimeMeridian {
+            name,
+            irm_longitude,
+            unit,
+            identifiers,
+        })
     }
 
     fn parse_ellipsoid(&mut self) -> Result<Ellipsoid, ParseError> {
@@ -1531,7 +1588,11 @@ mod tests {
             rf.anchor.as_deref(),
             Some("Tananarive observatory:21.0191667gS, 50.23849537gE of Paris")
         );
-        assert!(rf.prime_meridian.as_ref().unwrap().starts_with("PRIMEM["));
+        let pm = rf.prime_meridian.as_ref().unwrap();
+        assert_eq!(pm.name, "Paris");
+        assert_eq!(pm.irm_longitude, 2.5969213);
+        assert_eq!(pm.unit.as_ref().unwrap().keyword, UnitKeyword::AngleUnit);
+        assert_eq!(pm.unit.as_ref().unwrap().name, "grad");
     }
 
     #[test]
@@ -1571,7 +1632,10 @@ mod tests {
             panic!("expected ReferenceFrame");
         };
         assert_eq!(rf.keyword, DatumKeyword::Trf);
-        assert!(rf.prime_meridian.as_ref().unwrap().starts_with("PRIMEM["));
+        let pm = rf.prime_meridian.as_ref().unwrap();
+        assert_eq!(pm.name, "Greenwich");
+        assert_eq!(pm.irm_longitude, 0.0);
+        assert!(pm.unit.is_none());
     }
 
     #[test]
