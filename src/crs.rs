@@ -10,6 +10,13 @@ pub enum Crs {
 }
 
 impl Crs {
+    /// Serialize this CRS to a WKT2 string.
+    ///
+    /// This is an alias for [`ToString::to_string()`] provided for discoverability.
+    pub fn to_wkt2(&self) -> String {
+        self.to_string()
+    }
+
     /// Extract the EPSG code from this CRS's identifiers, if present.
     pub fn to_epsg(&self) -> Option<i32> {
         match self {
