@@ -3,10 +3,7 @@ mod tests {
     use crate::{Crs, parse_wkt2};
 
     fn parse_to_projjson(wkt: &str) -> serde_json::Value {
-        let Crs::ProjectedCrs(crs) = parse_wkt2(wkt).unwrap() else {
-            panic!("expected ProjectedCrs");
-        };
-        crs.to_projjson()
+        parse_wkt2(wkt).unwrap().to_projjson()
     }
 
     #[test]

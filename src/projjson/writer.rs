@@ -11,14 +11,21 @@ use crate::crs::*;
 // Public API
 // ---------------------------------------------------------------------------
 
+impl Crs {
+    /// Serialize this CRS to a PROJJSON `serde_json::Value`.
+    pub fn to_projjson(&self) -> Value {
+        match self {
+            Crs::ProjectedCrs(crs) => crs.to_projjson(),
+            Crs::GeogCrs(crs) => crs.to_projjson(),
+        }
+    }
+}
+
 impl ProjectedCrs {
     /// Serialize this projected CRS to a PROJJSON `serde_json::Value`.
     pub fn to_projjson(&self) -> Value {
         let mut obj = Map::new();
-        obj.insert(
-            "$schema".into(),
-            json!("https://proj.org/schemas/v0.7/projjson.schema.json"),
-        );
+        insert_schema(&mut obj);
         obj.insert("type".into(), json!("ProjectedCRS"));
         obj.insert("name".into(), json!(self.name));
         obj.insert("base_crs".into(), base_crs_to_json(&self.base_geodetic_crs));
@@ -39,6 +46,54 @@ impl ProjectedCrs {
 
         Value::Object(obj)
     }
+}
+
+impl GeogCrs {
+    /// Serialize this geographic CRS to a PROJJSON `serde_json::Value`.
+    pub fn to_projjson(&self) -> Value {
+        let mut obj = Map::new();
+        insert_schema(&mut obj);
+        obj.insert("type".into(), json!("GeographicCRS"));
+        obj.insert("name".into(), json!(self.name));
+
+        match &self.datum {
+            Datum::ReferenceFrame(rf) => {
+                obj.insert("datum".into(), datum_to_json(rf, self.dynamic.as_ref()));
+            }
+            Datum::Ensemble(ens) => {
+                obj.insert("datum_ensemble".into(), ensemble_to_json(ens));
+            }
+        }
+
+        if let Some(ref dynamic) = self.dynamic
+            && let Some(ref model) = dynamic.deformation_model
+        {
+            let mut m = Map::new();
+            m.insert("name".into(), json!(model.name));
+            insert_ids(&mut m, &model.identifiers);
+            obj.insert("deformation_models".into(), json!([Value::Object(m)]));
+        }
+
+        obj.insert(
+            "coordinate_system".into(),
+            cs_to_json(&self.coordinate_system),
+        );
+
+        insert_usages(&mut obj, &self.usages);
+        if let Some(ref remark) = self.remark {
+            obj.insert("remarks".into(), json!(remark));
+        }
+        insert_ids(&mut obj, &self.identifiers);
+
+        Value::Object(obj)
+    }
+}
+
+fn insert_schema(obj: &mut Map<String, Value>) {
+    obj.insert(
+        "$schema".into(),
+        json!("https://proj.org/schemas/v0.7/projjson.schema.json"),
+    );
 }
 
 // ---------------------------------------------------------------------------
