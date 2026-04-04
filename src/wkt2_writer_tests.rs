@@ -1,15 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::Parser;
+    use crate::parse_wkt2;
 
     /// Parse WKT2, emit it back, parse again, and assert the two structs are equal.
     fn assert_roundtrip(wkt: &str) {
-        let mut parser = Parser::new(wkt);
-        let parsed = parser.parse_projected_crs().unwrap();
+        let parsed = parse_wkt2(wkt).unwrap();
         let emitted = parsed.to_string();
-        let mut parser2 = Parser::new(&emitted);
-        let reparsed = parser2
-            .parse_projected_crs()
+        let reparsed = parse_wkt2(&emitted)
             .unwrap_or_else(|e| panic!("Failed to re-parse emitted WKT2:\n{emitted}\nError: {e}"));
         assert_eq!(
             parsed, reparsed,

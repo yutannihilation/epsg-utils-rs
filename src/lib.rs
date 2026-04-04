@@ -9,7 +9,6 @@ mod wkt2_writer;
 mod wkt2_writer_tests;
 
 pub use error::ParseError;
-pub use parser::Parser;
 pub use wkt2::{
     AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType,
     Datum, DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
@@ -17,3 +16,8 @@ pub use wkt2::{
     Meridian, PrimeMeridian, ProjectedCrs, RangeMeaning, TemporalExtent, Unit, UnitKeyword, Usage,
     VerticalExtent,
 };
+
+/// Parse a WKT2 string into a [`ProjectedCrs`].
+pub fn parse_wkt2(input: &str) -> Result<ProjectedCrs, ParseError> {
+    parser::Parser::new(input).parse_projected_crs()
+}

@@ -1,11 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::Parser;
+    use crate::parse_wkt2;
 
     fn parse_to_projjson(wkt: &str) -> serde_json::Value {
-        let mut parser = Parser::new(wkt);
-        let crs = parser.parse_projected_crs().unwrap();
-        crs.to_projjson()
+        parse_wkt2(wkt).unwrap().to_projjson()
     }
 
     #[test]
