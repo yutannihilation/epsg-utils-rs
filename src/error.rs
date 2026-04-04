@@ -22,6 +22,9 @@ pub enum ParseError {
     InvalidJson {
         message: String,
     },
+    UnknownEpsgCode {
+        code: i32,
+    },
 }
 
 impl std::fmt::Display for ParseError {
@@ -55,6 +58,9 @@ impl std::fmt::Display for ParseError {
             }
             ParseError::InvalidJson { message } => {
                 write!(f, "invalid PROJJSON: {message}")
+            }
+            ParseError::UnknownEpsgCode { code } => {
+                write!(f, "unknown EPSG code: {code}")
             }
         }
     }

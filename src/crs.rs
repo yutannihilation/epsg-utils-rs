@@ -4,7 +4,7 @@
 /// It uses Cartesian coordinates (easting/northing) rather than angular coordinates.
 ///
 /// WKT2 keywords: `PROJCRS` (preferred), `PROJECTEDCRS` (not supported by this parser).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectedCrs {
     /// The name of the projected CRS (e.g. "WGS 84 / UTM zone 31N").
     pub name: String,
@@ -26,7 +26,7 @@ pub struct ProjectedCrs {
 /// shared unit.
 ///
 /// WKT2 keyword: `CS`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CoordinateSystem {
     /// The type of coordinate system (e.g. Cartesian, ellipsoidal).
     pub cs_type: CsType,
@@ -41,7 +41,7 @@ pub struct CoordinateSystem {
 }
 
 /// The type of a coordinate system.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CsType {
     /// An affine coordinate system.
     Affine,
@@ -74,7 +74,7 @@ pub enum CsType {
 /// A single axis of a coordinate system.
 ///
 /// WKT2 keyword: `AXIS`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Axis {
     /// The axis name and/or abbreviation (e.g. "easting (E)").
     pub name_abbrev: String,
@@ -102,7 +102,7 @@ pub struct Axis {
 /// A meridian from which an axis direction is measured.
 ///
 /// WKT2 keyword: `MERIDIAN`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Meridian {
     /// The meridian value (typically longitude in the given angle unit).
     pub value: f64,
@@ -113,7 +113,7 @@ pub struct Meridian {
 /// How the axis range between min and max values is interpreted.
 ///
 /// WKT2 keyword: `RANGEMEANING`.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RangeMeaning {
     /// The range boundaries are exact limits.
     Exact,
@@ -124,7 +124,7 @@ pub enum RangeMeaning {
 /// A map projection (coordinate conversion) applied to a base CRS to produce a projected CRS.
 ///
 /// WKT2 keyword: `CONVERSION`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MapProjection {
     /// The name of the map projection (e.g. "UTM zone 31N").
     pub name: String,
@@ -139,7 +139,7 @@ pub struct MapProjection {
 /// The method (algorithm) used by a map projection.
 ///
 /// WKT2 keywords: `METHOD` (preferred), `PROJECTION` (backward compatibility).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MapProjectionMethod {
     /// The name of the method (e.g. "Transverse Mercator").
     pub name: String,
@@ -150,7 +150,7 @@ pub struct MapProjectionMethod {
 /// A single parameter of a map projection.
 ///
 /// WKT2 keyword: `PARAMETER`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MapProjectionParameter {
     /// The parameter name (e.g. "Latitude of natural origin").
     pub name: String,
@@ -163,7 +163,7 @@ pub struct MapProjectionParameter {
 }
 
 /// The keyword used for a base geodetic CRS within a projected CRS.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BaseGeodeticCrsKeyword {
     /// `BASEGEODCRS` -- a geodetic (geocentric) base CRS.
     BaseGeodCrs,
@@ -174,7 +174,7 @@ pub enum BaseGeodeticCrsKeyword {
 /// The base geodetic or geographic CRS from which a projected CRS is derived.
 ///
 /// WKT2 keywords: `BASEGEOGCRS` (preferred), `BASEGEODCRS`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BaseGeodeticCrs {
     /// Which keyword was used in the WKT.
     pub keyword: BaseGeodeticCrsKeyword,
@@ -195,7 +195,7 @@ pub struct BaseGeodeticCrs {
 /// In a dynamic CRS, coordinate values of a point change with time.
 ///
 /// WKT2 keyword: `DYNAMIC`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DynamicCrs {
     /// The epoch at which the reference frame is defined (e.g. 2010.0).
     pub frame_reference_epoch: f64,
@@ -206,7 +206,7 @@ pub struct DynamicCrs {
 /// A reference to a deformation model or velocity grid associated with a dynamic CRS.
 ///
 /// WKT2 keywords: `MODEL` (preferred), `VELOCITYGRID`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DeformationModel {
     /// The name of the deformation model.
     pub name: String,
@@ -215,7 +215,7 @@ pub struct DeformationModel {
 }
 
 /// A datum is either a geodetic reference frame or a datum ensemble.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Datum {
     /// A single geodetic reference frame (classical datum or modern terrestrial reference frame).
     ReferenceFrame(GeodeticReferenceFrame),
@@ -224,7 +224,7 @@ pub enum Datum {
 }
 
 /// The keyword used for a geodetic reference frame.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DatumKeyword {
     /// `DATUM` -- the preferred keyword for backward compatibility.
     Datum,
@@ -238,7 +238,7 @@ pub enum DatumKeyword {
 /// system and the Earth.
 ///
 /// WKT2 keywords: `DATUM` (preferred), `TRF`, `GEODETICDATUM`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeodeticReferenceFrame {
     /// Which keyword was used in the WKT.
     pub keyword: DatumKeyword,
@@ -261,7 +261,7 @@ pub struct GeodeticReferenceFrame {
 /// The prime meridian defining zero longitude.
 ///
 /// WKT2 keywords: `PRIMEM` (preferred), `PRIMEMERIDIAN`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrimeMeridian {
     /// The name of the prime meridian (e.g. "Greenwich", "Paris").
     pub name: String,
@@ -278,7 +278,7 @@ pub struct PrimeMeridian {
 /// A reference ellipsoid (the mathematical figure of the Earth).
 ///
 /// WKT2 keywords: `ELLIPSOID` (preferred), `SPHEROID` (backward compatibility).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Ellipsoid {
     /// The ellipsoid name (e.g. "WGS 84", "GRS 1980").
     pub name: String,
@@ -298,7 +298,7 @@ pub struct Ellipsoid {
 /// member the data is most accurately referenced to.
 ///
 /// WKT2 keyword: `ENSEMBLE`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DatumEnsemble {
     /// The ensemble name (e.g. "WGS 84 ensemble").
     pub name: String,
@@ -319,7 +319,7 @@ pub struct DatumEnsemble {
 /// A member of a datum ensemble.
 ///
 /// WKT2 keyword: `MEMBER`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnsembleMember {
     /// The member name (e.g. "WGS 84 (G730)").
     pub name: String,
@@ -330,7 +330,7 @@ pub struct EnsembleMember {
 /// An external identifier referencing an authority's definition of an object.
 ///
 /// WKT2 keyword: `ID`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Identifier {
     /// The name of the authority (e.g. "EPSG").
     pub authority_name: String,
@@ -345,7 +345,7 @@ pub struct Identifier {
 }
 
 /// An authority identifier value, which can be either numeric or textual.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AuthorityId {
     /// A numeric identifier (e.g. `4326`).
     Number(f64),
@@ -354,7 +354,7 @@ pub enum AuthorityId {
 }
 
 /// The keyword used for a unit.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum UnitKeyword {
     /// `ANGLEUNIT` -- for angular measurements.
     AngleUnit,
@@ -373,7 +373,7 @@ pub enum UnitKeyword {
 /// A scope-extent pairing describing the applicability of a CRS or coordinate operation.
 ///
 /// WKT2 keyword: `USAGE`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Usage {
     /// A textual description of the scope (purpose) of the CRS.
     pub scope: String,
@@ -390,7 +390,7 @@ pub struct Usage {
 /// A geographic bounding box in decimal degrees relative to the international reference meridian.
 ///
 /// WKT2 keyword: `BBOX`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BBox {
     /// The southern latitude boundary (-90 to +90).
     pub lower_left_latitude: f64,
@@ -406,7 +406,7 @@ pub struct BBox {
 /// A vertical height range of applicability. Depths have negative height values.
 ///
 /// WKT2 keyword: `VERTICALEXTENT`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VerticalExtent {
     /// The minimum height (most negative = deepest).
     pub minimum_height: f64,
@@ -419,7 +419,7 @@ pub struct VerticalExtent {
 /// A temporal range of applicability.
 ///
 /// WKT2 keyword: `TIMEEXTENT`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TemporalExtent {
     /// The start of the temporal range. Either a date/time string (e.g. "2013-01-01")
     /// or descriptive text (e.g. "Jurassic").
@@ -432,7 +432,7 @@ pub struct TemporalExtent {
 ///
 /// WKT2 keywords: `ANGLEUNIT`, `LENGTHUNIT`, `SCALEUNIT`, `PARAMETRICUNIT`,
 /// `TIMEUNIT`, `TEMPORALQUANTITY`, `UNIT`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Unit {
     /// Which keyword was used in the WKT.
     pub keyword: UnitKeyword,
