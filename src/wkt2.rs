@@ -76,13 +76,25 @@ pub enum BaseGeodeticCrsKeyword {
 pub struct BaseGeodeticCrs {
     pub keyword: BaseGeodeticCrsKeyword,
     pub name: String,
-    /// Present only for dynamic CRS (e.g. DYNAMIC[...])
-    pub dynamic: Option<String>,
+    /// Present only for dynamic CRS
+    pub dynamic: Option<DynamicCrs>,
     /// Either a geodetic reference frame or a datum ensemble
     pub datum: Datum,
     /// Optional ellipsoidal CS unit (ANGLEUNIT[...])
     pub ellipsoidal_cs_unit: Option<String>,
     /// Zero or more ID[...] nodes
+    pub identifiers: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct DynamicCrs {
+    pub frame_reference_epoch: f64,
+    pub deformation_model: Option<DeformationModel>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct DeformationModel {
+    pub name: String,
     pub identifiers: Vec<String>,
 }
 

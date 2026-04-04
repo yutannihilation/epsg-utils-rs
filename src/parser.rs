@@ -1,8 +1,9 @@
 use crate::error::ParseError;
 use crate::wkt2::{
     Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum, DatumEnsemble,
-    DatumKeyword, Ellipsoid, EnsembleMember, GeodeticReferenceFrame, MapProjection,
-    MapProjectionMethod, MapProjectionParameter, ProjectedCrs,
+    DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
+    GeodeticReferenceFrame, MapProjection, MapProjectionMethod, MapProjectionParameter,
+    ProjectedCrs,
 };
 
 pub struct Parser<'a> {
@@ -474,9 +475,8 @@ impl<'a> Parser<'a> {
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        let peeked = self.peek_keyword();
-        let dynamic = if peeked.as_deref() == Some("DYNAMIC") {
-            let d = self.parse_bracketed_node()?;
+        let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
+            let d = self.parse_dynamic_crs()?;
             self.skip_whitespace();
             self.expect_char(',')?;
             self.skip_whitespace();
@@ -532,6 +532,74 @@ impl<'a> Parser<'a> {
             datum,
             ellipsoidal_cs_unit,
             identifiers,
+        })
+    }
+
+    fn parse_dynamic_crs(&mut self) -> Result<DynamicCrs, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "DYNAMIC" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // FRAMEEPOCH[epoch]
+        self.skip_whitespace();
+        let fe_keyword = self.parse_keyword()?;
+        if fe_keyword != "FRAMEEPOCH" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - fe_keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let frame_reference_epoch = self.parse_number()?;
+        self.skip_whitespace();
+        self.expect_char(']')?;
+
+        // Optional deformation model
+        let mut deformation_model = None;
+        self.skip_whitespace();
+        if self.peek_char() != Some(']') {
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            let model_keyword = self.parse_keyword()?;
+            if model_keyword != "MODEL" && model_keyword != "VELOCITYGRID" {
+                return Err(ParseError::ExpectedKeyword {
+                    pos: self.pos - model_keyword.len(),
+                });
+            }
+            self.skip_whitespace();
+            self.expect_char('[')?;
+            self.skip_whitespace();
+            let name = self.parse_quoted_string()?;
+
+            let mut identifiers = Vec::new();
+            loop {
+                self.skip_whitespace();
+                if self.peek_char() == Some(']') {
+                    break;
+                }
+                self.expect_char(',')?;
+                self.skip_whitespace();
+                identifiers.push(self.parse_bracketed_node()?);
+            }
+            self.expect_char(']')?;
+
+            deformation_model = Some(DeformationModel { name, identifiers });
+        }
+
+        self.skip_whitespace();
+        self.expect_char(']')?;
+
+        Ok(DynamicCrs {
+            frame_reference_epoch,
+            deformation_model,
         })
     }
 
@@ -1032,9 +1100,29 @@ mod tests {
 
         let base = &result.base_geodetic_crs;
         assert_eq!(base.keyword, BaseGeodeticCrsKeyword::BaseGeodCrs);
-        assert!(base.dynamic.is_some());
-        assert!(base.dynamic.as_ref().unwrap().starts_with("DYNAMIC["));
+        let dynamic = base.dynamic.as_ref().unwrap();
+        assert_eq!(dynamic.frame_reference_epoch, 2010.0);
+        assert!(dynamic.deformation_model.is_none());
         assert!(matches!(base.datum, Datum::ReferenceFrame(_)));
+    }
+
+    #[test]
+    fn parse_dynamic_with_deformation_model() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEODCRS["NAD83",
+                DYNAMIC[FRAMEEPOCH[2010.0],MODEL["NAD83(CSRS)v6 velocity grid"]],
+                DATUM["NAD83", ELLIPSOID["GRS 1980",6378137,298.257222101]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let dynamic = result.base_geodetic_crs.dynamic.as_ref().unwrap();
+        assert_eq!(dynamic.frame_reference_epoch, 2010.0);
+        let model = dynamic.deformation_model.as_ref().unwrap();
+        assert_eq!(model.name, "NAD83(CSRS)v6 velocity grid");
+        assert!(model.identifiers.is_empty());
     }
 
     #[test]
