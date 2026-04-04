@@ -3,8 +3,45 @@ pub struct ProjectedCrs {
     pub name: String,
     pub base_geodetic_crs: BaseGeodeticCrs,
     pub map_projection: MapProjection,
-    pub coordinate_system: String,
+    pub coordinate_system: CoordinateSystem,
     pub scope_extent_identifier_remark: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CoordinateSystem {
+    pub cs_type: CsType,
+    pub dimension: u8,
+    pub identifiers: Vec<String>,
+    pub axes: Vec<Axis>,
+    pub cs_unit: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CsType {
+    Affine,
+    Cartesian,
+    Cylindrical,
+    Ellipsoidal,
+    Linear,
+    Parametric,
+    Polar,
+    Spherical,
+    Vertical,
+    TemporalCount,
+    TemporalMeasure,
+    Ordinal,
+    TemporalDateTime,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Axis {
+    pub name_abbrev: String,
+    pub direction: String,
+    pub meridian: Option<String>,
+    pub bearing: Option<String>,
+    pub order: Option<u32>,
+    pub unit: Option<String>,
+    pub identifiers: Vec<String>,
 }
 
 #[derive(Debug, PartialEq)]

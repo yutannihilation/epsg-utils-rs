@@ -1,7 +1,7 @@
 use crate::error::ParseError;
 use crate::wkt2::{
-    BaseGeodeticCrs, BaseGeodeticCrsKeyword, MapProjection, MapProjectionMethod,
-    MapProjectionParameter, ProjectedCrs,
+    Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, MapProjection,
+    MapProjectionMethod, MapProjectionParameter, ProjectedCrs,
 };
 
 pub struct Parser<'a> {
@@ -51,14 +51,18 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         let map_projection = self.parse_map_projection()?;
 
-        // <coordinate system>
+        // <coordinate system> header: CS[type, dimension, identifiers...]
         self.skip_whitespace();
         self.expect_char(',')?;
         self.skip_whitespace();
-        let coordinate_system = self.parse_bracketed_node()?;
+        let (cs_type, dimension, cs_identifiers) = self.parse_cs_header()?;
 
-        // <scope extent identifier remark> — zero or more comma-separated nodes
+        // Axes, cs unit, and scope/extent/identifier/remark are all
+        // comma-separated siblings at the PROJCRS level
+        let mut axes = Vec::new();
+        let mut cs_unit = None;
         let mut scope_extent_identifier_remark = Vec::new();
+
         loop {
             self.skip_whitespace();
             if self.peek_char() == Some(']') {
@@ -66,9 +70,27 @@ impl<'a> Parser<'a> {
             }
             self.expect_char(',')?;
             self.skip_whitespace();
-            let node = self.parse_bracketed_node()?;
-            scope_extent_identifier_remark.push(node);
+
+            match self.peek_keyword().as_deref() {
+                Some("AXIS") => {
+                    axes.push(self.parse_axis()?);
+                }
+                Some("LENGTHUNIT" | "ANGLEUNIT" | "SCALEUNIT" | "PARAMETRICUNIT" | "TIMEUNIT") => {
+                    cs_unit = Some(self.parse_bracketed_node()?);
+                }
+                _ => {
+                    scope_extent_identifier_remark.push(self.parse_bracketed_node()?);
+                }
+            }
         }
+
+        let coordinate_system = CoordinateSystem {
+            cs_type,
+            dimension,
+            identifiers: cs_identifiers,
+            axes,
+            cs_unit,
+        };
 
         self.expect_char(']')?;
 
@@ -232,8 +254,7 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         // optional sign
         if self.pos < self.input.len()
-            && (self.input.as_bytes()[self.pos] == b'-'
-                || self.input.as_bytes()[self.pos] == b'+')
+            && (self.input.as_bytes()[self.pos] == b'-' || self.input.as_bytes()[self.pos] == b'+')
         {
             self.pos += 1;
         }
@@ -246,8 +267,7 @@ impl<'a> Parser<'a> {
         }
         // optional exponent
         if self.pos < self.input.len()
-            && (self.input.as_bytes()[self.pos] == b'e'
-                || self.input.as_bytes()[self.pos] == b'E')
+            && (self.input.as_bytes()[self.pos] == b'e' || self.input.as_bytes()[self.pos] == b'E')
         {
             self.pos += 1;
             if self.pos < self.input.len()
@@ -256,9 +276,7 @@ impl<'a> Parser<'a> {
             {
                 self.pos += 1;
             }
-            while self.pos < self.input.len()
-                && self.input.as_bytes()[self.pos].is_ascii_digit()
-            {
+            while self.pos < self.input.len() && self.input.as_bytes()[self.pos].is_ascii_digit() {
                 self.pos += 1;
             }
         }
@@ -268,6 +286,167 @@ impl<'a> Parser<'a> {
         self.input[start..self.pos]
             .parse::<f64>()
             .map_err(|_| ParseError::UnexpectedEnd)
+    }
+
+    fn parse_cs_header(&mut self) -> Result<(CsType, u8, Vec<String>), ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "CS" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <cs type> — unquoted identifier like "Cartesian", "ellipsoidal"
+        self.skip_whitespace();
+        let type_str = self.parse_identifier()?;
+        let cs_type = match type_str.as_str() {
+            "affine" => CsType::Affine,
+            "Cartesian" => CsType::Cartesian,
+            "cylindrical" => CsType::Cylindrical,
+            "ellipsoidal" => CsType::Ellipsoidal,
+            "linear" => CsType::Linear,
+            "parametric" => CsType::Parametric,
+            "polar" => CsType::Polar,
+            "spherical" => CsType::Spherical,
+            "vertical" => CsType::Vertical,
+            "temporalCount" => CsType::TemporalCount,
+            "temporalMeasure" => CsType::TemporalMeasure,
+            "ordinal" => CsType::Ordinal,
+            "temporalDateTime" => CsType::TemporalDateTime,
+            _ => {
+                let len = type_str.len();
+                return Err(ParseError::UnexpectedKeyword {
+                    keyword: type_str,
+                    pos: self.pos - len,
+                });
+            }
+        };
+
+        // <dimension>
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let dim = self.parse_number()?;
+        let dimension = dim as u8;
+
+        // Optional identifiers
+        let mut identifiers = Vec::new();
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+            identifiers.push(self.parse_bracketed_node()?);
+        }
+
+        self.expect_char(']')?;
+
+        Ok((cs_type, dimension, identifiers))
+    }
+
+    fn parse_axis(&mut self) -> Result<Axis, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "AXIS" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <axis nameAbbrev>
+        self.skip_whitespace();
+        let name_abbrev = self.parse_quoted_string()?;
+
+        // <axis direction>
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let direction = self.parse_identifier()?;
+
+        // Optional components
+        let mut meridian = None;
+        let mut bearing = None;
+        let mut order = None;
+        let mut unit = None;
+        let mut identifiers = Vec::new();
+
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            match self.peek_keyword().as_deref() {
+                Some("MERIDIAN") => {
+                    meridian = Some(self.parse_bracketed_node()?);
+                }
+                Some("BEARING") => {
+                    bearing = Some(self.parse_bracketed_node()?);
+                }
+                Some("ORDER") => {
+                    order = Some(self.parse_order()?);
+                }
+                Some("LENGTHUNIT" | "ANGLEUNIT" | "SCALEUNIT" | "PARAMETRICUNIT" | "TIMEUNIT") => {
+                    unit = Some(self.parse_bracketed_node()?);
+                }
+                Some("ID") => {
+                    identifiers.push(self.parse_bracketed_node()?);
+                }
+                _ => {
+                    // AXISMINVALUE, AXISMAXVALUE, RANGEMEANING, or unknown
+                    self.parse_bracketed_node()?;
+                }
+            }
+        }
+
+        self.expect_char(']')?;
+
+        Ok(Axis {
+            name_abbrev,
+            direction,
+            meridian,
+            bearing,
+            order,
+            unit,
+            identifiers,
+        })
+    }
+
+    fn parse_order(&mut self) -> Result<u32, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "ORDER" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let value = self.parse_number()? as u32;
+        self.skip_whitespace();
+        self.expect_char(']')?;
+        Ok(value)
+    }
+
+    /// Parse an unquoted identifier (mixed case, alphabetic).
+    fn parse_identifier(&mut self) -> Result<String, ParseError> {
+        let start = self.pos;
+        while self.pos < self.input.len() && self.input.as_bytes()[self.pos].is_ascii_alphabetic() {
+            self.pos += 1;
+        }
+        if self.pos == start {
+            return Err(ParseError::ExpectedKeyword { pos: start });
+        }
+        Ok(self.input[start..self.pos].to_string())
     }
 
     fn parse_base_geodetic_crs(&mut self) -> Result<BaseGeodeticCrs, ParseError> {
@@ -451,7 +630,10 @@ mod tests {
         let wkt = r#"PROJCRS["WGS 84 / UTM zone 31N",
             BASEGEOGCRS["WGS 84", DATUM["World Geodetic System 1984", ELLIPSOID["WGS 84",6378137,298.257223563]]],
             CONVERSION["UTM zone 31N", METHOD["Transverse Mercator"]],
-            CS[Cartesian, 2, AXIS["easting", east], AXIS["northing", north]]]"#;
+            CS[Cartesian, 2],
+                AXIS["easting (E)", east, ORDER[1]],
+                AXIS["northing (N)", north, ORDER[2]],
+                LENGTHUNIT["metre", 1.0]]"#;
 
         let mut parser = Parser::new(wkt);
         let result = parser.parse_projected_crs().unwrap();
@@ -462,8 +644,121 @@ mod tests {
         assert_eq!(base.name, "WGS 84");
         assert!(base.dynamic.is_none());
         assert!(base.datum.starts_with("DATUM["));
-        assert!(base.ellipsoidal_cs_unit.is_none());
-        assert!(base.identifiers.is_empty());
+
+        let cs = &result.coordinate_system;
+        assert_eq!(cs.cs_type, CsType::Cartesian);
+        assert_eq!(cs.dimension, 2);
+        assert_eq!(cs.axes.len(), 2);
+        assert_eq!(cs.axes[0].name_abbrev, "easting (E)");
+        assert_eq!(cs.axes[0].direction, "east");
+        assert_eq!(cs.axes[0].order, Some(1));
+        assert_eq!(cs.axes[1].name_abbrev, "northing (N)");
+        assert_eq!(cs.axes[1].direction, "north");
+        assert_eq!(cs.axes[1].order, Some(2));
+        assert!(cs.cs_unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
+    }
+
+    #[test]
+    fn parse_cs_with_axis_units() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["WGS 84", DATUM["d"]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2],
+                AXIS["easting", east, LENGTHUNIT["metre", 1.0]],
+                AXIS["northing", north, LENGTHUNIT["metre", 1.0]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let cs = &result.coordinate_system;
+        assert_eq!(cs.axes.len(), 2);
+        assert!(cs.axes[0].unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
+        assert!(cs.axes[1].unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
+        assert!(cs.cs_unit.is_none());
+    }
+
+    #[test]
+    fn parse_cs_ellipsoidal() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["WGS 84", DATUM["d"]],
+            CONVERSION["y", METHOD["m"]],
+            CS[ellipsoidal, 2],
+                AXIS["latitude", north, ORDER[1], ANGLEUNIT["degree", 0.0174532925199433]],
+                AXIS["longitude", east, ORDER[2], ANGLEUNIT["degree", 0.0174532925199433]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let cs = &result.coordinate_system;
+        assert_eq!(cs.cs_type, CsType::Ellipsoidal);
+        assert_eq!(cs.dimension, 2);
+        assert_eq!(cs.axes[0].direction, "north");
+        assert!(cs.axes[0].unit.as_ref().unwrap().starts_with("ANGLEUNIT["));
+    }
+
+    #[test]
+    fn parse_cs_with_meridian() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["WGS 84", DATUM["d"]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2],
+                AXIS["x", north, MERIDIAN[90, ANGLEUNIT["degree", 0.0174532925199433]]],
+                AXIS["y", north, MERIDIAN[0, ANGLEUNIT["degree", 0.0174532925199433]]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let cs = &result.coordinate_system;
+        assert!(
+            cs.axes[0]
+                .meridian
+                .as_ref()
+                .unwrap()
+                .starts_with("MERIDIAN[")
+        );
+        assert!(
+            cs.axes[1]
+                .meridian
+                .as_ref()
+                .unwrap()
+                .starts_with("MERIDIAN[")
+        );
+    }
+
+    #[test]
+    fn parse_cs_no_axes() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d"]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let cs = &result.coordinate_system;
+        assert_eq!(cs.cs_type, CsType::Cartesian);
+        assert_eq!(cs.dimension, 2);
+        assert!(cs.axes.is_empty());
+        assert!(cs.cs_unit.is_none());
+    }
+
+    #[test]
+    fn parse_cs_with_id() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d"]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2, ID["EPSG", 4400]],
+                AXIS["easting", east],
+                AXIS["northing", north],
+                LENGTHUNIT["metre", 1.0]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let cs = &result.coordinate_system;
+        assert_eq!(cs.identifiers.len(), 1);
+        assert!(cs.identifiers[0].starts_with("ID["));
+        assert_eq!(cs.axes.len(), 2);
     }
 
     #[test]
@@ -553,7 +848,13 @@ mod tests {
 
         assert_eq!(proj.parameters[0].name, "Latitude of natural origin");
         assert_eq!(proj.parameters[0].value, 0.0);
-        assert!(proj.parameters[0].unit.as_ref().unwrap().starts_with("ANGLEUNIT["));
+        assert!(
+            proj.parameters[0]
+                .unit
+                .as_ref()
+                .unwrap()
+                .starts_with("ANGLEUNIT[")
+        );
         assert_eq!(proj.parameters[0].identifiers.len(), 1);
 
         assert_eq!(proj.parameters[1].name, "Longitude of natural origin");
@@ -561,11 +862,23 @@ mod tests {
 
         assert_eq!(proj.parameters[2].name, "Scale factor at natural origin");
         assert_eq!(proj.parameters[2].value, 0.9996);
-        assert!(proj.parameters[2].unit.as_ref().unwrap().starts_with("SCALEUNIT["));
+        assert!(
+            proj.parameters[2]
+                .unit
+                .as_ref()
+                .unwrap()
+                .starts_with("SCALEUNIT[")
+        );
 
         assert_eq!(proj.parameters[3].name, "False easting");
         assert_eq!(proj.parameters[3].value, 500000.0);
-        assert!(proj.parameters[3].unit.as_ref().unwrap().starts_with("LENGTHUNIT["));
+        assert!(
+            proj.parameters[3]
+                .unit
+                .as_ref()
+                .unwrap()
+                .starts_with("LENGTHUNIT[")
+        );
 
         assert_eq!(proj.parameters[4].name, "False northing");
         assert_eq!(proj.parameters[4].value, 0.0);
@@ -613,11 +926,15 @@ mod tests {
             BASEGEOGCRS["x", DATUM["d"]],
             CONVERSION["y", METHOD["m"]],
             CS[Cartesian, 2],
+                AXIS["easting", east],
+                AXIS["northing", north],
+                LENGTHUNIT["metre", 1.0],
             ID["EPSG", 32631]]"#;
 
         let mut parser = Parser::new(wkt);
         let result = parser.parse_projected_crs().unwrap();
 
+        assert_eq!(result.coordinate_system.axes.len(), 2);
         assert_eq!(result.scope_extent_identifier_remark.len(), 1);
         assert!(result.scope_extent_identifier_remark[0].starts_with("ID["));
     }
