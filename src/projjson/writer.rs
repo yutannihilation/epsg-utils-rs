@@ -19,6 +19,7 @@ impl Crs {
             Crs::GeogCrs(crs) => crs.to_projjson(),
             Crs::GeodCrs(crs) => crs.to_projjson(),
             Crs::VertCrs(crs) => crs.to_projjson(),
+            Crs::CompoundCrs(crs) => crs.to_projjson(),
         }
     }
 }
@@ -179,6 +180,37 @@ impl VertCrs {
                 .collect();
             obj.insert("geoid_models".into(), Value::Array(models));
         }
+
+        insert_usages(&mut obj, &self.usages);
+        if let Some(ref remark) = self.remark {
+            obj.insert("remarks".into(), json!(remark));
+        }
+        insert_ids(&mut obj, &self.identifiers);
+
+        Value::Object(obj)
+    }
+}
+
+impl CompoundCrs {
+    /// Serialize this compound CRS to a PROJJSON `serde_json::Value`.
+    pub fn to_projjson(&self) -> Value {
+        let mut obj = Map::new();
+        insert_schema(&mut obj);
+        obj.insert("type".into(), json!("CompoundCRS"));
+        obj.insert("name".into(), json!(self.name));
+
+        let components: Vec<Value> = self
+            .components
+            .iter()
+            .map(|c| match c {
+                SingleCrs::ProjectedCrs(crs) => crs.to_projjson(),
+                SingleCrs::GeogCrs(crs) => crs.to_projjson(),
+                SingleCrs::GeodCrs(crs) => crs.to_projjson(),
+                SingleCrs::VertCrs(crs) => crs.to_projjson(),
+                SingleCrs::Other(raw) => json!({ "type": "Unknown", "wkt": raw }),
+            })
+            .collect();
+        obj.insert("components".into(), Value::Array(components));
 
         insert_usages(&mut obj, &self.usages);
         if let Some(ref remark) = self.remark {

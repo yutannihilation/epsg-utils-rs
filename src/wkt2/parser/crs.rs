@@ -1,7 +1,7 @@
 use crate::crs::{
-    BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, Crs, Datum, GeodCrs, GeodCrsKeyword,
-    GeogCrs, GeogCrsKeyword, GeoidModel, ProjectedCrs, VertCrs, VertCrsKeyword, VerticalDatum,
-    VerticalReferenceFrame, VerticalReferenceFrameKeyword,
+    BaseGeodeticCrs, BaseGeodeticCrsKeyword, CompoundCrs, CoordinateSystem, Crs, Datum, GeodCrs,
+    GeodCrsKeyword, GeogCrs, GeogCrsKeyword, GeoidModel, ProjectedCrs, SingleCrs, VertCrs,
+    VertCrsKeyword, VerticalDatum, VerticalReferenceFrame, VerticalReferenceFrameKeyword,
 };
 use crate::error::ParseError;
 
@@ -9,6 +9,19 @@ use super::Parser;
 
 impl<'a> Parser<'a> {
     pub fn parse_crs(&mut self) -> Result<Crs, ParseError> {
+        let crs = self.parse_single_crs()?;
+
+        self.skip_whitespace();
+        if self.pos < self.input.len() {
+            return Err(ParseError::TrailingInput { pos: self.pos });
+        }
+
+        Ok(crs)
+    }
+
+    /// Parse a single CRS without checking for trailing input.
+    /// Used internally by `parse_crs` and for compound CRS components.
+    fn parse_single_crs(&mut self) -> Result<Crs, ParseError> {
         self.skip_whitespace();
         match self.peek_keyword().as_deref() {
             Some("PROJCRS") => Ok(Crs::ProjectedCrs(Box::new(self.parse_projected_crs()?))),
@@ -21,6 +34,7 @@ impl<'a> Parser<'a> {
             Some("VERTCRS") | Some("VERTICALCRS") => {
                 Ok(Crs::VertCrs(Box::new(self.parse_vert_crs()?)))
             }
+            Some("COMPOUNDCRS") => Ok(Crs::CompoundCrs(Box::new(self.parse_compound_crs()?))),
             _ => {
                 // Consume the keyword so we can report it
                 let keyword = self.parse_keyword()?;
@@ -100,11 +114,6 @@ impl<'a> Parser<'a> {
         };
 
         self.expect_char(']')?;
-
-        self.skip_whitespace();
-        if self.pos < self.input.len() {
-            return Err(ParseError::TrailingInput { pos: self.pos });
-        }
 
         Ok(ProjectedCrs {
             name,
@@ -220,11 +229,6 @@ impl<'a> Parser<'a> {
         };
 
         self.expect_char(']')?;
-
-        self.skip_whitespace();
-        if self.pos < self.input.len() {
-            return Err(ParseError::TrailingInput { pos: self.pos });
-        }
 
         Ok(GeogCrs {
             keyword,
@@ -342,11 +346,6 @@ impl<'a> Parser<'a> {
 
         self.expect_char(']')?;
 
-        self.skip_whitespace();
-        if self.pos < self.input.len() {
-            return Err(ParseError::TrailingInput { pos: self.pos });
-        }
-
         Ok(GeodCrs {
             keyword,
             name,
@@ -454,11 +453,6 @@ impl<'a> Parser<'a> {
 
         self.expect_char(']')?;
 
-        self.skip_whitespace();
-        if self.pos < self.input.len() {
-            return Err(ParseError::TrailingInput { pos: self.pos });
-        }
-
         Ok(VertCrs {
             keyword,
             name,
@@ -470,6 +464,123 @@ impl<'a> Parser<'a> {
             identifiers,
             remark,
         })
+    }
+
+    pub fn parse_compound_crs(&mut self) -> Result<CompoundCrs, ParseError> {
+        self.skip_whitespace();
+        let keyword = self.parse_keyword()?;
+        if keyword != "COMPOUNDCRS" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        self.skip_whitespace();
+        let name = self.parse_quoted_string()?;
+
+        // Parse at least two component CRSs
+        let mut components = Vec::new();
+        // First component is required
+        let first = self.comma_then(|p| p.parse_single_crs_component())?;
+        components.push(first);
+        // Second component is required
+        let second = self.comma_then(|p| p.parse_single_crs_component())?;
+        components.push(second);
+
+        let mut usages = Vec::new();
+        let mut identifiers = Vec::new();
+        let mut remark = None;
+
+        self.trailing_items(|p, kw| match kw {
+            // Additional component CRSs or trailing metadata
+            "PROJCRS" | "GEOGCRS" | "GEOGRAPHICCRS" | "GEODCRS" | "GEODETICCRS" | "VERTCRS"
+            | "VERTICALCRS" => {
+                components.push(p.parse_single_crs_component_with_keyword(kw)?);
+                Ok(())
+            }
+            "USAGE" => {
+                usages.push(p.parse_usage()?);
+                Ok(())
+            }
+            "ID" => {
+                identifiers.push(p.parse_identifier_node()?);
+                Ok(())
+            }
+            "REMARK" => {
+                remark = Some(p.parse_remark()?);
+                Ok(())
+            }
+            _ => {
+                // Could be an unsupported CRS type as a component
+                // or truly unknown metadata — store as Other component
+                // if it looks like a CRS keyword (ends with CRS)
+                if kw.ends_with("CRS") {
+                    let wkt = p.parse_bracketed_node()?;
+                    components.push(SingleCrs::Other(format!("{kw}{wkt}")));
+                } else {
+                    p.parse_bracketed_node()?;
+                }
+                Ok(())
+            }
+        })?;
+
+        self.expect_char(']')?;
+
+        Ok(CompoundCrs {
+            name,
+            components,
+            usages,
+            identifiers,
+            remark,
+        })
+    }
+
+    /// Parse a single CRS component (for compound CRS).
+    fn parse_single_crs_component(&mut self) -> Result<SingleCrs, ParseError> {
+        self.skip_whitespace();
+        let kw = self.peek_keyword();
+        match kw.as_deref() {
+            Some("PROJCRS") => Ok(SingleCrs::ProjectedCrs(Box::new(
+                self.parse_projected_crs()?,
+            ))),
+            Some("GEOGCRS") | Some("GEOGRAPHICCRS") => {
+                Ok(SingleCrs::GeogCrs(Box::new(self.parse_geog_crs()?)))
+            }
+            Some("GEODCRS") | Some("GEODETICCRS") => {
+                Ok(SingleCrs::GeodCrs(Box::new(self.parse_geod_crs()?)))
+            }
+            Some("VERTCRS") | Some("VERTICALCRS") => {
+                Ok(SingleCrs::VertCrs(Box::new(self.parse_vert_crs()?)))
+            }
+            _ => {
+                // Unsupported CRS type — capture raw WKT
+                let raw = self.parse_bracketed_node()?;
+                Ok(SingleCrs::Other(raw))
+            }
+        }
+    }
+
+    /// Parse a single CRS component when the keyword has already been peeked
+    /// by `trailing_items` (keyword is already known but NOT consumed).
+    fn parse_single_crs_component_with_keyword(
+        &mut self,
+        kw: &str,
+    ) -> Result<SingleCrs, ParseError> {
+        match kw {
+            "PROJCRS" => Ok(SingleCrs::ProjectedCrs(Box::new(
+                self.parse_projected_crs()?,
+            ))),
+            "GEOGCRS" | "GEOGRAPHICCRS" => Ok(SingleCrs::GeogCrs(Box::new(self.parse_geog_crs()?))),
+            "GEODCRS" | "GEODETICCRS" => Ok(SingleCrs::GeodCrs(Box::new(self.parse_geod_crs()?))),
+            "VERTCRS" | "VERTICALCRS" => Ok(SingleCrs::VertCrs(Box::new(self.parse_vert_crs()?))),
+            _ => {
+                let raw = self.parse_bracketed_node()?;
+                Ok(SingleCrs::Other(raw))
+            }
+        }
     }
 
     pub(crate) fn parse_vertical_reference_frame(

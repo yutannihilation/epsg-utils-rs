@@ -599,7 +599,7 @@ fn parse_usage_with_temporal_quoted() {
 fn trailing_input_error() {
     let wkt = r#"PROJCRS["test", BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]], CONVERSION["y", METHOD["m"]], CS[Cartesian, 2]] extra"#;
     let mut parser = Parser::new(wkt);
-    let err = parser.parse_projected_crs().unwrap_err();
+    let err = parser.parse_crs().unwrap_err();
     assert!(matches!(err, ParseError::TrailingInput { .. }));
 }
 
@@ -1000,4 +1000,88 @@ fn parse_vertcrs_via_parse_crs() {
     let mut parser = Parser::new(wkt);
     let result = parser.parse_crs().unwrap();
     assert!(matches!(result, crate::crs::Crs::VertCrs(_)));
+}
+
+// ---------------------------------------------------------------------------
+// COMPOUNDCRS parsing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn parse_compoundcrs_geog_vert() {
+    let wkt = r#"COMPOUNDCRS["NAD83 + NAVD88",
+        GEOGCRS["NAD83",
+            DATUM["North American Datum 1983",
+                ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1]]],
+            PRIMEMERIDIAN["Greenwich",0],
+            CS[ellipsoidal,2],
+                AXIS["latitude",north,ORDER[1]],
+                AXIS["longitude",east,ORDER[2]],
+                ANGLEUNIT["degree",0.0174532925199433]],
+        VERTCRS["NAVD88",
+            VDATUM["North American Vertical Datum 1983"],
+            CS[vertical,1],
+                AXIS["gravity-related height (H)",up],
+                LENGTHUNIT["metre",1]]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_compound_crs().unwrap();
+
+    assert_eq!(result.name, "NAD83 + NAVD88");
+    assert_eq!(result.components.len(), 2);
+    assert!(matches!(
+        result.components[0],
+        crate::crs::SingleCrs::GeogCrs(_)
+    ));
+    assert!(matches!(
+        result.components[1],
+        crate::crs::SingleCrs::VertCrs(_)
+    ));
+}
+
+#[test]
+fn parse_compoundcrs_with_unsupported_component() {
+    let wkt = r#"COMPOUNDCRS["2D GPS position with civil time",
+        GEOGCRS["WGS 84",
+            DATUM["World Geodetic System 1984",
+                ELLIPSOID["WGS 84",6378137,298.257223563]],
+            CS[ellipsoidal,2],
+                AXIS["(lat)",north],
+                AXIS["(lon)",east],
+                ANGLEUNIT["degree",0.0174532925199433]],
+        TIMECRS["DateTime",
+            TDATUM["Gregorian Calendar"],
+            CS[TemporalDateTime,1],AXIS["Time (T)",future]]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_compound_crs().unwrap();
+
+    assert_eq!(result.components.len(), 2);
+    assert!(matches!(
+        result.components[0],
+        crate::crs::SingleCrs::GeogCrs(_)
+    ));
+    assert!(matches!(
+        result.components[1],
+        crate::crs::SingleCrs::Other(_)
+    ));
+}
+
+#[test]
+fn parse_compoundcrs_via_parse_crs() {
+    let wkt = r#"COMPOUNDCRS["test",
+        GEOGCRS["WGS 84",
+            DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+            CS[ellipsoidal,2],
+                AXIS["latitude",north],
+                AXIS["longitude",east],
+                ANGLEUNIT["degree",0.0174532925199433]],
+        VERTCRS["NAVD88",
+            VDATUM["NAVD88"],
+            CS[vertical,1],
+                AXIS["gravity-related height (H)",up],
+                LENGTHUNIT["metre",1]]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_crs().unwrap();
+    assert!(matches!(result, crate::crs::Crs::CompoundCrs(_)));
 }

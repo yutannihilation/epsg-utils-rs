@@ -536,4 +536,62 @@ mod tests {
                     LENGTHUNIT["metre",1]]"#,
         );
     }
+
+    // -----------------------------------------------------------------------
+    // COMPOUNDCRS roundtrips
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn roundtrip_compoundcrs_geog_vert() {
+        assert_roundtrip(
+            r#"COMPOUNDCRS["NAD83 + NAVD88",
+                GEOGCRS["NAD83",
+                    DATUM["North American Datum 1983",
+                        ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1]]],
+                    PRIMEM["Greenwich",0],
+                    CS[ellipsoidal,2],
+                        AXIS["latitude",north,ORDER[1]],
+                        AXIS["longitude",east,ORDER[2]],
+                        ANGLEUNIT["degree",0.0174532925199433]],
+                VERTCRS["NAVD88",
+                    VDATUM["North American Vertical Datum 1983"],
+                    CS[vertical,1],
+                        AXIS["gravity-related height (H)",up],
+                        LENGTHUNIT["metre",1]]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_compoundcrs_with_unsupported() {
+        assert_roundtrip(
+            r#"COMPOUNDCRS["2D GPS position with civil time",
+                GEOGCRS["WGS 84",
+                    DATUM["World Geodetic System 1984",
+                        ELLIPSOID["WGS 84",6378137,298.257223563]],
+                    CS[ellipsoidal,2],
+                        AXIS["(lat)",north],
+                        AXIS["(lon)",east],
+                        ANGLEUNIT["degree",0.0174532925199433]],
+                TIMECRS["DateTime",TDATUM["Gregorian Calendar"],CS[TemporalDateTime,1],AXIS["Time (T)",future]]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_compoundcrs_with_id() {
+        assert_roundtrip(
+            r#"COMPOUNDCRS["test",
+                GEOGCRS["WGS 84",
+                    DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+                    CS[ellipsoidal,2],
+                        AXIS["latitude",north],
+                        AXIS["longitude",east],
+                        ANGLEUNIT["degree",0.0174532925199433]],
+                VERTCRS["NAVD88",
+                    VDATUM["NAVD88"],
+                    CS[vertical,1],
+                        AXIS["gravity-related height (H)",up],
+                        LENGTHUNIT["metre",1]],
+                ID["EPSG",8888]]"#,
+        );
+    }
 }

@@ -35,6 +35,7 @@ impl Display for Crs {
             Crs::GeogCrs(crs) => crs.fmt(f),
             Crs::GeodCrs(crs) => crs.fmt(f),
             Crs::VertCrs(crs) => crs.fmt(f),
+            Crs::CompoundCrs(crs) => crs.fmt(f),
         }
     }
 }
@@ -198,6 +199,36 @@ impl Display for GeoidModel {
         write_quoted(f, &self.name)?;
         write_comma_items(f, &self.identifiers)?;
         f.write_char(']')
+    }
+}
+
+impl Display for CompoundCrs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("COMPOUNDCRS[")?;
+        write_quoted(f, &self.name)?;
+        for component in &self.components {
+            write!(f, ",{component}")?;
+        }
+        write_comma_items(f, &self.usages)?;
+        write_comma_items(f, &self.identifiers)?;
+        if let Some(ref remark) = self.remark {
+            f.write_str(",REMARK[")?;
+            write_quoted(f, remark)?;
+            f.write_char(']')?;
+        }
+        f.write_char(']')
+    }
+}
+
+impl Display for SingleCrs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            SingleCrs::ProjectedCrs(crs) => crs.fmt(f),
+            SingleCrs::GeogCrs(crs) => crs.fmt(f),
+            SingleCrs::GeodCrs(crs) => crs.fmt(f),
+            SingleCrs::VertCrs(crs) => crs.fmt(f),
+            SingleCrs::Other(raw) => f.write_str(raw),
+        }
     }
 }
 

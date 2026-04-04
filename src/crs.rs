@@ -11,6 +11,8 @@ pub enum Crs {
     GeodCrs(Box<GeodCrs>),
     /// A vertical CRS (WKT2 keyword: `VERTCRS`).
     VertCrs(Box<VertCrs>),
+    /// A compound CRS (WKT2 keyword: `COMPOUNDCRS`).
+    CompoundCrs(Box<CompoundCrs>),
 }
 
 impl Crs {
@@ -28,6 +30,7 @@ impl Crs {
             Crs::GeogCrs(crs) => crs.to_epsg(),
             Crs::GeodCrs(crs) => crs.to_epsg(),
             Crs::VertCrs(crs) => crs.to_epsg(),
+            Crs::CompoundCrs(crs) => crs.to_epsg(),
         }
     }
 }
@@ -225,6 +228,54 @@ pub struct GeoidModel {
     pub name: String,
     /// Identifiers for this geoid model.
     pub identifiers: Vec<Identifier>,
+}
+
+/// A compound coordinate reference system (COMPOUNDCRS).
+///
+/// A compound CRS is a non-repeating sequence of two or more independent CRSs.
+///
+/// WKT2 keyword: `COMPOUNDCRS`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompoundCrs {
+    /// The name of the compound CRS (e.g. "NAD83 + NAVD88").
+    pub name: String,
+    /// The constituent single CRSs (at least two).
+    pub components: Vec<SingleCrs>,
+    /// Zero or more scope-extent pairings describing the applicability of this CRS.
+    pub usages: Vec<Usage>,
+    /// Zero or more external identifiers referencing this CRS.
+    pub identifiers: Vec<Identifier>,
+    /// An optional free-text remark about this CRS.
+    pub remark: Option<String>,
+}
+
+impl CompoundCrs {
+    /// Extract the EPSG code from this CRS's identifiers, if present.
+    pub fn to_epsg(&self) -> Option<i32> {
+        self.identifiers.iter().find_map(|id| {
+            if id.authority_name == "EPSG"
+                && let AuthorityId::Number(n) = id.authority_unique_id
+            {
+                return Some(n as i32);
+            }
+            None
+        })
+    }
+}
+
+/// A single (non-compound) CRS, used as a component of a compound CRS.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SingleCrs {
+    /// A projected CRS.
+    ProjectedCrs(Box<ProjectedCrs>),
+    /// A geographic CRS.
+    GeogCrs(Box<GeogCrs>),
+    /// A geodetic CRS.
+    GeodCrs(Box<GeodCrs>),
+    /// A vertical CRS.
+    VertCrs(Box<VertCrs>),
+    /// An unsupported CRS type, stored as raw WKT text.
+    Other(String),
 }
 
 /// A projected coordinate reference system (PROJCRS).
