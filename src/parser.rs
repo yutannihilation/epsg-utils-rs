@@ -1,7 +1,8 @@
 use crate::error::ParseError;
 use crate::wkt2::{
-    Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, MapProjection,
-    MapProjectionMethod, MapProjectionParameter, ProjectedCrs,
+    Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, DatumKeyword,
+    Ellipsoid, GeodeticReferenceFrame, MapProjection, MapProjectionMethod, MapProjectionParameter,
+    ProjectedCrs,
 };
 
 pub struct Parser<'a> {
@@ -485,9 +486,9 @@ impl<'a> Parser<'a> {
         };
 
         // <geodetic reference frame> or <geodetic datum ensemble>
-        let datum = self.parse_bracketed_node()?;
+        let mut datum = self.parse_geodetic_reference_frame()?;
 
-        // Optional components: ellipsoidal CS unit and identifiers
+        // Prime meridian and other optional components are siblings after DATUM[...]
         let mut ellipsoidal_cs_unit = None;
         let mut identifiers = Vec::new();
 
@@ -499,8 +500,10 @@ impl<'a> Parser<'a> {
             self.expect_char(',')?;
             self.skip_whitespace();
 
-            let peeked = self.peek_keyword();
-            match peeked.as_deref() {
+            match self.peek_keyword().as_deref() {
+                Some("PRIMEM") => {
+                    datum.prime_meridian = Some(self.parse_bracketed_node()?);
+                }
                 Some("ANGLEUNIT") => {
                     ellipsoidal_cs_unit = Some(self.parse_bracketed_node()?);
                 }
@@ -508,7 +511,6 @@ impl<'a> Parser<'a> {
                     identifiers.push(self.parse_bracketed_node()?);
                 }
                 _ => {
-                    // Unknown optional node, consume it
                     identifiers.push(self.parse_bracketed_node()?);
                 }
             }
@@ -522,6 +524,149 @@ impl<'a> Parser<'a> {
             dynamic,
             datum,
             ellipsoidal_cs_unit,
+            identifiers,
+        })
+    }
+
+    fn parse_geodetic_reference_frame(&mut self) -> Result<GeodeticReferenceFrame, ParseError> {
+        let keyword_str = self.parse_keyword()?;
+        let keyword = match keyword_str.as_str() {
+            "DATUM" => DatumKeyword::Datum,
+            "TRF" => DatumKeyword::Trf,
+            "GEODETICDATUM" => DatumKeyword::GeodeticDatum,
+            _ => {
+                return Err(ParseError::ExpectedKeyword {
+                    pos: self.pos - keyword_str.len(),
+                });
+            }
+        };
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <datum name>
+        self.skip_whitespace();
+        let name = self.parse_quoted_string()?;
+
+        // <ellipsoid>
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let ellipsoid = self.parse_ellipsoid()?;
+
+        // Optional: anchor, anchor epoch, identifiers
+        let mut anchor = None;
+        let mut anchor_epoch = None;
+        let mut identifiers = Vec::new();
+
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            match self.peek_keyword().as_deref() {
+                Some("ANCHOR") => {
+                    self.parse_keyword()?;
+                    self.skip_whitespace();
+                    self.expect_char('[')?;
+                    self.skip_whitespace();
+                    anchor = Some(self.parse_quoted_string()?);
+                    self.skip_whitespace();
+                    self.expect_char(']')?;
+                }
+                Some("ANCHOREPOCH") => {
+                    self.parse_keyword()?;
+                    self.skip_whitespace();
+                    self.expect_char('[')?;
+                    self.skip_whitespace();
+                    anchor_epoch = Some(self.parse_number()?);
+                    self.skip_whitespace();
+                    self.expect_char(']')?;
+                }
+                Some("ID") => {
+                    identifiers.push(self.parse_bracketed_node()?);
+                }
+                _ => {
+                    identifiers.push(self.parse_bracketed_node()?);
+                }
+            }
+        }
+
+        self.expect_char(']')?;
+
+        Ok(GeodeticReferenceFrame {
+            keyword,
+            name,
+            ellipsoid,
+            anchor,
+            anchor_epoch,
+            identifiers,
+            prime_meridian: None, // filled in by caller
+        })
+    }
+
+    fn parse_ellipsoid(&mut self) -> Result<Ellipsoid, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "ELLIPSOID" && keyword != "SPHEROID" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <ellipsoid name>
+        self.skip_whitespace();
+        let name = self.parse_quoted_string()?;
+
+        // <semi-major axis>
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let semi_major_axis = self.parse_number()?;
+
+        // <inverse flattening>
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let inverse_flattening = self.parse_number()?;
+
+        // Optional unit and identifiers
+        let mut unit = None;
+        let mut identifiers = Vec::new();
+
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            match self.peek_keyword().as_deref() {
+                Some("LENGTHUNIT") => {
+                    unit = Some(self.parse_bracketed_node()?);
+                }
+                Some("ID") => {
+                    identifiers.push(self.parse_bracketed_node()?);
+                }
+                _ => {
+                    identifiers.push(self.parse_bracketed_node()?);
+                }
+            }
+        }
+
+        self.expect_char(']')?;
+
+        Ok(Ellipsoid {
+            name,
+            semi_major_axis,
+            inverse_flattening,
+            unit,
             identifiers,
         })
     }
@@ -643,7 +788,11 @@ mod tests {
         assert_eq!(base.keyword, BaseGeodeticCrsKeyword::BaseGeogCrs);
         assert_eq!(base.name, "WGS 84");
         assert!(base.dynamic.is_none());
-        assert!(base.datum.starts_with("DATUM["));
+        assert_eq!(base.datum.keyword, DatumKeyword::Datum);
+        assert_eq!(base.datum.name, "World Geodetic System 1984");
+        assert_eq!(base.datum.ellipsoid.name, "WGS 84");
+        assert_eq!(base.datum.ellipsoid.semi_major_axis, 6378137.0);
+        assert_eq!(base.datum.ellipsoid.inverse_flattening, 298.257223563);
 
         let cs = &result.coordinate_system;
         assert_eq!(cs.cs_type, CsType::Cartesian);
@@ -661,7 +810,7 @@ mod tests {
     #[test]
     fn parse_cs_with_axis_units() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["WGS 84", DATUM["d"]],
+            BASEGEOGCRS["WGS 84", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["y", METHOD["m"]],
             CS[Cartesian, 2],
                 AXIS["easting", east, LENGTHUNIT["metre", 1.0]],
@@ -680,7 +829,7 @@ mod tests {
     #[test]
     fn parse_cs_ellipsoidal() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["WGS 84", DATUM["d"]],
+            BASEGEOGCRS["WGS 84", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["y", METHOD["m"]],
             CS[ellipsoidal, 2],
                 AXIS["latitude", north, ORDER[1], ANGLEUNIT["degree", 0.0174532925199433]],
@@ -699,7 +848,7 @@ mod tests {
     #[test]
     fn parse_cs_with_meridian() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["WGS 84", DATUM["d"]],
+            BASEGEOGCRS["WGS 84", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["y", METHOD["m"]],
             CS[Cartesian, 2],
                 AXIS["x", north, MERIDIAN[90, ANGLEUNIT["degree", 0.0174532925199433]]],
@@ -728,7 +877,7 @@ mod tests {
     #[test]
     fn parse_cs_no_axes() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["x", DATUM["d"]],
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["y", METHOD["m"]],
             CS[Cartesian, 2]]"#;
 
@@ -745,7 +894,7 @@ mod tests {
     #[test]
     fn parse_cs_with_id() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["x", DATUM["d"]],
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["y", METHOD["m"]],
             CS[Cartesian, 2, ID["EPSG", 4400]],
                 AXIS["easting", east],
@@ -777,7 +926,7 @@ mod tests {
         assert_eq!(base.keyword, BaseGeodeticCrsKeyword::BaseGeodCrs);
         assert!(base.dynamic.is_some());
         assert!(base.dynamic.as_ref().unwrap().starts_with("DYNAMIC["));
-        assert!(base.datum.starts_with("DATUM["));
+        assert_eq!(base.datum.keyword, DatumKeyword::Datum);
     }
 
     #[test]
@@ -805,18 +954,89 @@ mod tests {
         assert!(base.identifiers[0].starts_with("ID["));
     }
 
+    // TODO: ENSEMBLE is not yet supported as a structured type
+
     #[test]
-    fn parse_base_crs_with_ensemble() {
+    fn parse_datum_with_anchor() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["WGS 84", ENSEMBLE["World Geodetic System 1984 ensemble", MEMBER["WGS 84 (G730)"], ELLIPSOID["WGS 84",6378137,298.257223563]]],
+            BASEGEOGCRS["Tananarive 1925",
+                GEODETICDATUM["Tananarive 1925",
+                    ELLIPSOID["International 1924",6378388.0,297.0,LENGTHUNIT["metre",1.0]],
+                    ANCHOR["Tananarive observatory:21.0191667gS, 50.23849537gE of Paris"]],
+                PRIMEM["Paris",2.5969213,ANGLEUNIT["grad",0.015707963267949]]],
             CONVERSION["y", METHOD["m"]],
             CS[Cartesian, 2]]"#;
 
         let mut parser = Parser::new(wkt);
         let result = parser.parse_projected_crs().unwrap();
 
-        let base = &result.base_geodetic_crs;
-        assert!(base.datum.starts_with("ENSEMBLE["));
+        let datum = &result.base_geodetic_crs.datum;
+        assert_eq!(datum.keyword, DatumKeyword::GeodeticDatum);
+        assert_eq!(datum.name, "Tananarive 1925");
+        assert_eq!(datum.ellipsoid.name, "International 1924");
+        assert_eq!(datum.ellipsoid.semi_major_axis, 6378388.0);
+        assert_eq!(datum.ellipsoid.inverse_flattening, 297.0);
+        assert!(
+            datum
+                .ellipsoid
+                .unit
+                .as_ref()
+                .unwrap()
+                .starts_with("LENGTHUNIT[")
+        );
+        assert_eq!(
+            datum.anchor.as_deref(),
+            Some("Tananarive observatory:21.0191667gS, 50.23849537gE of Paris")
+        );
+        assert!(
+            datum
+                .prime_meridian
+                .as_ref()
+                .unwrap()
+                .starts_with("PRIMEM[")
+        );
+    }
+
+    #[test]
+    fn parse_datum_with_anchor_epoch() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["NAD83",
+                DATUM["NAD83 (National Spatial Reference System 2011)",
+                    ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1.0]],
+                    ANCHOREPOCH[2010.0]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let datum = &result.base_geodetic_crs.datum;
+        assert_eq!(datum.anchor_epoch, Some(2010.0));
+        assert!(datum.anchor.is_none());
+    }
+
+    #[test]
+    fn parse_datum_trf_keyword() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["WGS 84",
+                TRF["World Geodetic System 1984",
+                    ELLIPSOID["WGS 84",6378388.0,298.257223563,LENGTHUNIT["metre",1.0]]],
+                PRIMEM["Greenwich",0.0]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let datum = &result.base_geodetic_crs.datum;
+        assert_eq!(datum.keyword, DatumKeyword::Trf);
+        assert!(
+            datum
+                .prime_meridian
+                .as_ref()
+                .unwrap()
+                .starts_with("PRIMEM[")
+        );
     }
 
     #[test]
@@ -887,7 +1107,7 @@ mod tests {
     #[test]
     fn parse_map_projection_with_conversion_id() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["WGS 84", DATUM["d"]],
+            BASEGEOGCRS["WGS 84", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["UTM zone 10N",
                 METHOD["Transverse Mercator"],
                 PARAMETER["False easting",500000,LENGTHUNIT["metre",1.0]],
@@ -906,7 +1126,7 @@ mod tests {
     #[test]
     fn parse_map_projection_method_only() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["x", DATUM["d"]],
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["y", METHOD["Transverse Mercator"]],
             CS[Cartesian, 2]]"#;
 
@@ -923,7 +1143,7 @@ mod tests {
     #[test]
     fn parse_projcrs_with_trailing_nodes() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["x", DATUM["d"]],
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
             CONVERSION["y", METHOD["m"]],
             CS[Cartesian, 2],
                 AXIS["easting", east],
@@ -941,7 +1161,7 @@ mod tests {
 
     #[test]
     fn reject_projectedcrs() {
-        let wkt = r#"PROJECTEDCRS["test", BASEGEOGCRS["x", DATUM["d"]], CONVERSION["y", METHOD["m"]], CS[Cartesian, 2]]"#;
+        let wkt = r#"PROJECTEDCRS["test", BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]], CONVERSION["y", METHOD["m"]], CS[Cartesian, 2]]"#;
         let mut parser = Parser::new(wkt);
         let err = parser.parse_projected_crs().unwrap_err();
         assert!(matches!(err, ParseError::UnexpectedKeyword { .. }));
@@ -958,7 +1178,7 @@ mod tests {
 
     #[test]
     fn trailing_input_error() {
-        let wkt = r#"PROJCRS["test", BASEGEOGCRS["x", DATUM["d"]], CONVERSION["y", METHOD["m"]], CS[Cartesian, 2]] extra"#;
+        let wkt = r#"PROJCRS["test", BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]], CONVERSION["y", METHOD["m"]], CS[Cartesian, 2]] extra"#;
         let mut parser = Parser::new(wkt);
         let err = parser.parse_projected_crs().unwrap_err();
         assert!(matches!(err, ParseError::TrailingInput { .. }));
