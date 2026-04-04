@@ -4,7 +4,9 @@ pub struct ProjectedCrs {
     pub base_geodetic_crs: BaseGeodeticCrs,
     pub map_projection: MapProjection,
     pub coordinate_system: CoordinateSystem,
-    pub scope_extent_identifier_remark: Vec<String>,
+    pub usages: Vec<Usage>,
+    pub identifiers: Vec<Identifier>,
+    pub remark: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -190,6 +192,14 @@ pub enum UnitKeyword {
     TimeUnit,
     /// Backward-compatible generic UNIT keyword
     Unit,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Usage {
+    /// Raw scope string (unparsed for now)
+    pub scope: String,
+    /// Raw extent string (unparsed for now)
+    pub extent: String,
 }
 
 #[derive(Debug, PartialEq)]

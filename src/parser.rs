@@ -3,7 +3,7 @@ use crate::wkt2::{
     AuthorityId, Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum,
     DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
     GeodeticReferenceFrame, Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter,
-    Meridian, ProjectedCrs, RangeMeaning, Unit, UnitKeyword,
+    Meridian, ProjectedCrs, RangeMeaning, Unit, UnitKeyword, Usage,
 };
 
 pub struct Parser<'a> {
@@ -63,7 +63,9 @@ impl<'a> Parser<'a> {
         // comma-separated siblings at the PROJCRS level
         let mut axes = Vec::new();
         let mut cs_unit = None;
-        let mut scope_extent_identifier_remark = Vec::new();
+        let mut usages = Vec::new();
+        let mut identifiers = Vec::new();
+        let mut remark = None;
 
         loop {
             self.skip_whitespace();
@@ -80,8 +82,18 @@ impl<'a> Parser<'a> {
                 Some(kw) if Self::is_unit_keyword(kw) => {
                     cs_unit = Some(self.parse_unit()?);
                 }
+                Some("USAGE") => {
+                    usages.push(self.parse_usage()?);
+                }
+                Some("ID") => {
+                    identifiers.push(self.parse_identifier_node()?);
+                }
+                Some("REMARK") => {
+                    remark = Some(self.parse_remark()?);
+                }
                 _ => {
-                    scope_extent_identifier_remark.push(self.parse_bracketed_node()?);
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
                 }
             }
         }
@@ -106,7 +118,9 @@ impl<'a> Parser<'a> {
             base_geodetic_crs,
             map_projection,
             coordinate_system,
-            scope_extent_identifier_remark,
+            usages,
+            identifiers,
+            remark,
         })
     }
 
@@ -290,6 +304,48 @@ impl<'a> Parser<'a> {
         self.input[start..self.pos]
             .parse::<f64>()
             .map_err(|_| ParseError::UnexpectedEnd)
+    }
+
+    fn parse_usage(&mut self) -> Result<Usage, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "USAGE" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <scope> — a bracketed node like SCOPE[...]
+        self.skip_whitespace();
+        let scope = self.parse_bracketed_node()?;
+
+        // <extent> — a bracketed node like AREA[...] or BBOX[...]
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let extent = self.parse_bracketed_node()?;
+
+        self.skip_whitespace();
+        self.expect_char(']')?;
+
+        Ok(Usage { scope, extent })
+    }
+
+    fn parse_remark(&mut self) -> Result<String, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "REMARK" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let text = self.parse_quoted_string()?;
+        self.skip_whitespace();
+        self.expect_char(']')?;
+        Ok(text)
     }
 
     fn parse_cs_header(&mut self) -> Result<(CsType, u8, Vec<Identifier>), ParseError> {
@@ -1625,8 +1681,12 @@ mod tests {
         let result = parser.parse_projected_crs().unwrap();
 
         assert_eq!(result.coordinate_system.axes.len(), 2);
-        assert_eq!(result.scope_extent_identifier_remark.len(), 1);
-        assert!(result.scope_extent_identifier_remark[0].starts_with("ID["));
+        assert_eq!(result.identifiers.len(), 1);
+        assert_eq!(result.identifiers[0].authority_name, "EPSG");
+        assert_eq!(
+            result.identifiers[0].authority_unique_id,
+            AuthorityId::Number(32631.0)
+        );
     }
 
     #[test]
@@ -1644,6 +1704,28 @@ mod tests {
         let mut parser = Parser::new(wkt);
         let err = parser.parse_projected_crs().unwrap_err();
         assert!(matches!(err, ParseError::ExpectedKeyword { .. }));
+    }
+
+    #[test]
+    fn parse_usage_and_remark() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2],
+            USAGE[SCOPE["Engineering survey"], AREA["Netherlands"]],
+            USAGE[SCOPE["Cadastre"], AREA["Germany"]],
+            ID["EPSG", 32631],
+            REMARK["This is a test CRS"]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        assert_eq!(result.usages.len(), 2);
+        assert!(result.usages[0].scope.starts_with("SCOPE["));
+        assert!(result.usages[0].extent.starts_with("AREA["));
+        assert!(result.usages[1].scope.starts_with("SCOPE["));
+        assert_eq!(result.identifiers.len(), 1);
+        assert_eq!(result.remark.as_deref(), Some("This is a test CRS"));
     }
 
     #[test]
