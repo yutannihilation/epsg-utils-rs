@@ -403,4 +403,65 @@ mod tests {
                     ANGLEUNIT["degree",0.0174532925199433]]"#,
         );
     }
+
+    // -----------------------------------------------------------------------
+    // GEODCRS roundtrips
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn roundtrip_geodcrs_cartesian() {
+        assert_roundtrip(
+            r#"GEODCRS["WGS 84 (geocentric)",
+                DATUM["World Geodetic System 1984",
+                    ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],
+                CS[Cartesian,3],
+                    AXIS["(X)",geocentricX],
+                    AXIS["(Y)",geocentricY],
+                    AXIS["(Z)",geocentricZ],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geodcrs_dynamic() {
+        assert_roundtrip(
+            r#"GEODCRS["ITRF2014 (geocentric)",
+                DYNAMIC[FRAMEEPOCH[2010]],
+                TRF["International Terrestrial Reference Frame 2014",
+                    ELLIPSOID["GRS 1980",6378137,298.257222101]],
+                CS[Cartesian,3],
+                    AXIS["(X)",geocentricX],
+                    AXIS["(Y)",geocentricY],
+                    AXIS["(Z)",geocentricZ],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geodeticcrs_keyword() {
+        assert_roundtrip(
+            r#"GEODETICCRS["WGS 84 (geocentric)",
+                DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+                CS[Cartesian,3],
+                    AXIS["(X)",geocentricX],
+                    AXIS["(Y)",geocentricY],
+                    AXIS["(Z)",geocentricZ],
+                    LENGTHUNIT["metre",1]]"#,
+        );
+    }
+
+    #[test]
+    fn roundtrip_geodcrs_with_id() {
+        assert_roundtrip(
+            r#"GEODCRS["WGS 84 (geocentric)",
+                DATUM["World Geodetic System 1984",
+                    ELLIPSOID["WGS 84",6378137,298.257223563]],
+                CS[Cartesian,3],
+                    AXIS["(X)",geocentricX],
+                    AXIS["(Y)",geocentricY],
+                    AXIS["(Z)",geocentricZ],
+                    LENGTHUNIT["metre",1],
+                ID["EPSG",4978]]"#,
+        );
+    }
 }

@@ -7,6 +7,8 @@ pub enum Crs {
     ProjectedCrs(Box<ProjectedCrs>),
     /// A geographic CRS (WKT2 keyword: `GEOGCRS`).
     GeogCrs(Box<GeogCrs>),
+    /// A geodetic CRS (WKT2 keyword: `GEODCRS`).
+    GeodCrs(Box<GeodCrs>),
 }
 
 impl Crs {
@@ -22,6 +24,7 @@ impl Crs {
         match self {
             Crs::ProjectedCrs(crs) => crs.to_epsg(),
             Crs::GeogCrs(crs) => crs.to_epsg(),
+            Crs::GeodCrs(crs) => crs.to_epsg(),
         }
     }
 }
@@ -61,6 +64,54 @@ pub struct GeogCrs {
 }
 
 impl GeogCrs {
+    /// Extract the EPSG code from this CRS's identifiers, if present.
+    pub fn to_epsg(&self) -> Option<i32> {
+        self.identifiers.iter().find_map(|id| {
+            if id.authority_name == "EPSG"
+                && let AuthorityId::Number(n) = id.authority_unique_id
+            {
+                return Some(n as i32);
+            }
+            None
+        })
+    }
+}
+
+/// The keyword used for a geodetic CRS.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GeodCrsKeyword {
+    /// `GEODCRS` -- the preferred keyword.
+    GeodCrs,
+    /// `GEODETICCRS` -- the long form.
+    GeodeticCrs,
+}
+
+/// A geodetic coordinate reference system (GEODCRS).
+///
+/// A geodetic CRS uses a Cartesian or spherical coordinate system.
+///
+/// WKT2 keywords: `GEODCRS` (preferred), `GEODETICCRS`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeodCrs {
+    /// Which keyword was used in the WKT.
+    pub keyword: GeodCrsKeyword,
+    /// The name of the geodetic CRS (e.g. "WGS 84").
+    pub name: String,
+    /// Present only if the CRS is dynamic (has a time-varying reference frame).
+    pub dynamic: Option<DynamicCrs>,
+    /// The datum: either a geodetic reference frame or a datum ensemble.
+    pub datum: Datum,
+    /// The coordinate system describing axes, their directions, and units.
+    pub coordinate_system: CoordinateSystem,
+    /// Zero or more scope-extent pairings describing the applicability of this CRS.
+    pub usages: Vec<Usage>,
+    /// Zero or more external identifiers referencing this CRS.
+    pub identifiers: Vec<Identifier>,
+    /// An optional free-text remark about this CRS.
+    pub remark: Option<String>,
+}
+
+impl GeodCrs {
     /// Extract the EPSG code from this CRS's identifiers, if present.
     pub fn to_epsg(&self) -> Option<i32> {
         self.identifiers.iter().find_map(|id| {

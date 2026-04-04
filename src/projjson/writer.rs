@@ -17,6 +17,7 @@ impl Crs {
         match self {
             Crs::ProjectedCrs(crs) => crs.to_projjson(),
             Crs::GeogCrs(crs) => crs.to_projjson(),
+            Crs::GeodCrs(crs) => crs.to_projjson(),
         }
     }
 }
@@ -54,6 +55,47 @@ impl GeogCrs {
         let mut obj = Map::new();
         insert_schema(&mut obj);
         obj.insert("type".into(), json!("GeographicCRS"));
+        obj.insert("name".into(), json!(self.name));
+
+        match &self.datum {
+            Datum::ReferenceFrame(rf) => {
+                obj.insert("datum".into(), datum_to_json(rf, self.dynamic.as_ref()));
+            }
+            Datum::Ensemble(ens) => {
+                obj.insert("datum_ensemble".into(), ensemble_to_json(ens));
+            }
+        }
+
+        if let Some(ref dynamic) = self.dynamic
+            && let Some(ref model) = dynamic.deformation_model
+        {
+            let mut m = Map::new();
+            m.insert("name".into(), json!(model.name));
+            insert_ids(&mut m, &model.identifiers);
+            obj.insert("deformation_models".into(), json!([Value::Object(m)]));
+        }
+
+        obj.insert(
+            "coordinate_system".into(),
+            cs_to_json(&self.coordinate_system),
+        );
+
+        insert_usages(&mut obj, &self.usages);
+        if let Some(ref remark) = self.remark {
+            obj.insert("remarks".into(), json!(remark));
+        }
+        insert_ids(&mut obj, &self.identifiers);
+
+        Value::Object(obj)
+    }
+}
+
+impl GeodCrs {
+    /// Serialize this geodetic CRS to a PROJJSON `serde_json::Value`.
+    pub fn to_projjson(&self) -> Value {
+        let mut obj = Map::new();
+        insert_schema(&mut obj);
+        obj.insert("type".into(), json!("GeodeticCRS"));
         obj.insert("name".into(), json!(self.name));
 
         match &self.datum {

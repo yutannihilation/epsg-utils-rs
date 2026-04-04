@@ -815,3 +815,86 @@ fn parse_geographiccrs_keyword() {
     let result = parser.parse_geog_crs().unwrap();
     assert_eq!(result.keyword, crate::crs::GeogCrsKeyword::GeographicCrs);
 }
+
+// ---------------------------------------------------------------------------
+// GEODCRS parsing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn parse_geodcrs_cartesian() {
+    let wkt = r#"GEODCRS["WGS 84 (geocentric)",
+        DATUM["World Geodetic System 1984",
+            ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],
+        CS[Cartesian,3],
+            AXIS["(X)",geocentricX],
+            AXIS["(Y)",geocentricY],
+            AXIS["(Z)",geocentricZ],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geod_crs().unwrap();
+
+    assert_eq!(result.keyword, crate::crs::GeodCrsKeyword::GeodCrs);
+    assert_eq!(result.name, "WGS 84 (geocentric)");
+    let Datum::ReferenceFrame(ref rf) = result.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    assert_eq!(rf.name, "World Geodetic System 1984");
+
+    let cs = &result.coordinate_system;
+    assert_eq!(cs.cs_type, CsType::Cartesian);
+    assert_eq!(cs.dimension, 3);
+    assert_eq!(cs.axes.len(), 3);
+}
+
+#[test]
+fn parse_geodeticcrs_keyword() {
+    let wkt = r#"GEODETICCRS["WGS 84 (geocentric)",
+        DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+        CS[Cartesian,3],
+            AXIS["(X)",geocentricX],
+            AXIS["(Y)",geocentricY],
+            AXIS["(Z)",geocentricZ],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geod_crs().unwrap();
+    assert_eq!(result.keyword, crate::crs::GeodCrsKeyword::GeodeticCrs);
+}
+
+#[test]
+fn parse_geodcrs_via_parse_crs() {
+    let wkt = r#"GEODCRS["WGS 84 (geocentric)",
+        DATUM["WGS 1984",ELLIPSOID["WGS 84",6378137,298.257223563]],
+        CS[Cartesian,3],
+            AXIS["(X)",geocentricX],
+            AXIS["(Y)",geocentricY],
+            AXIS["(Z)",geocentricZ],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_crs().unwrap();
+    assert!(matches!(result, crate::crs::Crs::GeodCrs(_)));
+}
+
+#[test]
+fn parse_geodcrs_dynamic() {
+    let wkt = r#"GEODCRS["ITRF2014 (geocentric)",
+        DYNAMIC[FRAMEEPOCH[2010]],
+        TRF["International Terrestrial Reference Frame 2014",
+            ELLIPSOID["GRS 1980",6378137,298.257222101]],
+        CS[Cartesian,3],
+            AXIS["(X)",geocentricX],
+            AXIS["(Y)",geocentricY],
+            AXIS["(Z)",geocentricZ],
+            LENGTHUNIT["metre",1]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_geod_crs().unwrap();
+
+    assert!(result.dynamic.is_some());
+    assert_eq!(
+        result.dynamic.as_ref().unwrap().frame_reference_epoch,
+        2010.0
+    );
+}
