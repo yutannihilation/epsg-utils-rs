@@ -1,8 +1,8 @@
-use crate::error::ParseError;
-use crate::wkt2::{
+use crate::crs::{
     DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
     GeodeticReferenceFrame, PrimeMeridian,
 };
+use crate::error::ParseError;
 
 use super::Parser;
 

@@ -8,8 +8,8 @@ mod unit;
 #[cfg(test)]
 mod tests;
 
+use crate::crs::Identifier;
 use crate::error::ParseError;
-use crate::wkt2::Identifier;
 
 pub struct Parser<'a> {
     input: &'a str,
@@ -186,11 +186,11 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a value that is either a number or a quoted string.
-    pub(crate) fn parse_number_or_text(&mut self) -> Result<crate::wkt2::AuthorityId, ParseError> {
+    pub(crate) fn parse_number_or_text(&mut self) -> Result<crate::crs::AuthorityId, ParseError> {
         if self.peek_char() == Some('"') {
-            Ok(crate::wkt2::AuthorityId::Text(self.parse_quoted_string()?))
+            Ok(crate::crs::AuthorityId::Text(self.parse_quoted_string()?))
         } else {
-            Ok(crate::wkt2::AuthorityId::Number(self.parse_number()?))
+            Ok(crate::crs::AuthorityId::Number(self.parse_number()?))
         }
     }
 }

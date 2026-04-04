@@ -5,7 +5,7 @@
 
 use std::fmt::{self, Display, Formatter, Write};
 
-use crate::wkt2::*;
+use crate::crs::*;
 
 // ---------------------------------------------------------------------------
 // Helpers

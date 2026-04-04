@@ -1,5 +1,5 @@
+use crate::crs::{BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, Datum, ProjectedCrs};
 use crate::error::ParseError;
-use crate::wkt2::{BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, Datum, ProjectedCrs};
 
 use super::Parser;
 

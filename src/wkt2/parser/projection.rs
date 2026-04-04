@@ -1,5 +1,5 @@
+use crate::crs::{MapProjection, MapProjectionMethod, MapProjectionParameter};
 use crate::error::ParseError;
-use crate::wkt2::{MapProjection, MapProjectionMethod, MapProjectionParameter};
 
 use super::Parser;
 

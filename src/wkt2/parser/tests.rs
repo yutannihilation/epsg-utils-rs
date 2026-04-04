@@ -1,5 +1,5 @@
 use super::*;
-use crate::wkt2::{
+use crate::crs::{
     AuthorityId, BaseGeodeticCrsKeyword, CsType, Datum, DatumKeyword, RangeMeaning, UnitKeyword,
 };
 

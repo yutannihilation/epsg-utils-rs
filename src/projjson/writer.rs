@@ -5,7 +5,7 @@
 
 use serde_json::{Map, Value, json};
 
-use crate::wkt2::*;
+use crate::crs::*;
 
 // ---------------------------------------------------------------------------
 // Public API

@@ -1,5 +1,5 @@
+use crate::crs::{Unit, UnitKeyword};
 use crate::error::ParseError;
-use crate::wkt2::{Unit, UnitKeyword};
 
 use super::Parser;
 

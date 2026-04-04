@@ -2,8 +2,8 @@
 
 use serde_json::Value;
 
+use crate::crs::*;
 use crate::error::ParseError;
-use crate::wkt2::*;
 
 // ---------------------------------------------------------------------------
 // Helpers

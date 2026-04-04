@@ -1,5 +1,5 @@
+use crate::crs::{BBox, Identifier, RangeMeaning, TemporalExtent, Usage, VerticalExtent};
 use crate::error::ParseError;
-use crate::wkt2::{BBox, Identifier, RangeMeaning, TemporalExtent, Usage, VerticalExtent};
 
 use super::Parser;
 
@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
     /// Common pattern used by ellipsoid, prime meridian, map projection parameter, etc.
     pub(crate) fn parse_trailing_unit_and_identifiers(
         &mut self,
-    ) -> Result<(Option<crate::wkt2::Unit>, Vec<Identifier>), ParseError> {
+    ) -> Result<(Option<crate::crs::Unit>, Vec<Identifier>), ParseError> {
         let mut unit = None;
         let mut identifiers = Vec::new();
 

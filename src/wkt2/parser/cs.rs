@@ -1,5 +1,5 @@
+use crate::crs::{Axis, CsType, Identifier, Meridian};
 use crate::error::ParseError;
-use crate::wkt2::{Axis, CsType, Identifier, Meridian};
 
 use super::Parser;
 
