@@ -1,9 +1,9 @@
 use crate::error::ParseError;
 use crate::wkt2::{
-    Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum, DatumEnsemble,
-    DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember, GeodeticReferenceFrame,
-    MapProjection, MapProjectionMethod, MapProjectionParameter, Meridian, ProjectedCrs,
-    RangeMeaning, Unit, UnitKeyword,
+    AuthorityId, Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum,
+    DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
+    GeodeticReferenceFrame, Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter,
+    Meridian, ProjectedCrs, RangeMeaning, Unit, UnitKeyword,
 };
 
 pub struct Parser<'a> {
@@ -148,10 +148,11 @@ impl<'a> Parser<'a> {
                     parameters.push(self.parse_map_projection_parameter()?);
                 }
                 Some("ID") => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    identifiers.push(self.parse_identifier_node()?);
                 }
                 _ => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
                 }
             }
         }
@@ -188,7 +189,7 @@ impl<'a> Parser<'a> {
             }
             self.expect_char(',')?;
             self.skip_whitespace();
-            identifiers.push(self.parse_bracketed_node()?);
+            identifiers.push(self.parse_identifier_node()?);
         }
 
         self.expect_char(']')?;
@@ -234,10 +235,11 @@ impl<'a> Parser<'a> {
                     unit = Some(self.parse_unit()?);
                 }
                 Some("ID") => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    identifiers.push(self.parse_identifier_node()?);
                 }
                 _ => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
                 }
             }
         }
@@ -290,7 +292,7 @@ impl<'a> Parser<'a> {
             .map_err(|_| ParseError::UnexpectedEnd)
     }
 
-    fn parse_cs_header(&mut self) -> Result<(CsType, u8, Vec<String>), ParseError> {
+    fn parse_cs_header(&mut self) -> Result<(CsType, u8, Vec<Identifier>), ParseError> {
         let keyword = self.parse_keyword()?;
         if keyword != "CS" {
             return Err(ParseError::ExpectedKeyword {
@@ -343,7 +345,7 @@ impl<'a> Parser<'a> {
             }
             self.expect_char(',')?;
             self.skip_whitespace();
-            identifiers.push(self.parse_bracketed_node()?);
+            identifiers.push(self.parse_identifier_node()?);
         }
 
         self.expect_char(']')?;
@@ -413,7 +415,7 @@ impl<'a> Parser<'a> {
                     range_meaning = Some(self.parse_range_meaning()?);
                 }
                 Some("ID") => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    identifiers.push(self.parse_identifier_node()?);
                 }
                 _ => {
                     self.parse_bracketed_node()?;
@@ -501,6 +503,86 @@ impl<'a> Parser<'a> {
         Ok(meaning)
     }
 
+    fn parse_identifier_node(&mut self) -> Result<Identifier, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "ID" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <authority name> — quoted string
+        self.skip_whitespace();
+        let authority_name = self.parse_quoted_string()?;
+
+        // <authority unique identifier> — number or quoted string
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let authority_unique_id = self.parse_number_or_text()?;
+
+        // Optional: version, citation, uri
+        let mut version = None;
+        let mut citation = None;
+        let mut uri = None;
+
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            match self.peek_keyword().as_deref() {
+                Some("CITATION") => {
+                    self.parse_keyword()?;
+                    self.skip_whitespace();
+                    self.expect_char('[')?;
+                    self.skip_whitespace();
+                    citation = Some(self.parse_quoted_string()?);
+                    self.skip_whitespace();
+                    self.expect_char(']')?;
+                }
+                Some("URI") => {
+                    self.parse_keyword()?;
+                    self.skip_whitespace();
+                    self.expect_char('[')?;
+                    self.skip_whitespace();
+                    uri = Some(self.parse_quoted_string()?);
+                    self.skip_whitespace();
+                    self.expect_char(']')?;
+                }
+                _ => {
+                    // version — number or quoted string
+                    version = Some(self.parse_number_or_text()?);
+                }
+            }
+        }
+
+        self.expect_char(']')?;
+
+        Ok(Identifier {
+            authority_name,
+            authority_unique_id,
+            version,
+            citation,
+            uri,
+        })
+    }
+
+    /// Parse a value that is either a number or a quoted string.
+    fn parse_number_or_text(&mut self) -> Result<AuthorityId, ParseError> {
+        if self.peek_char() == Some('"') {
+            Ok(AuthorityId::Text(self.parse_quoted_string()?))
+        } else {
+            Ok(AuthorityId::Number(self.parse_number()?))
+        }
+    }
+
     /// Parse an unquoted identifier (mixed case, alphabetic).
     fn parse_identifier(&mut self) -> Result<String, ParseError> {
         let start = self.pos;
@@ -577,10 +659,11 @@ impl<'a> Parser<'a> {
                     ellipsoidal_cs_unit = Some(self.parse_unit()?);
                 }
                 Some("ID") => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    identifiers.push(self.parse_identifier_node()?);
                 }
                 _ => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
                 }
             }
         }
@@ -649,7 +732,7 @@ impl<'a> Parser<'a> {
                 }
                 self.expect_char(',')?;
                 self.skip_whitespace();
-                identifiers.push(self.parse_bracketed_node()?);
+                identifiers.push(self.parse_identifier_node()?);
             }
             self.expect_char(']')?;
 
@@ -711,10 +794,11 @@ impl<'a> Parser<'a> {
                     self.expect_char(']')?;
                 }
                 Some("ID") => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    identifiers.push(self.parse_identifier_node()?);
                 }
                 _ => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
                 }
             }
         }
@@ -755,7 +839,7 @@ impl<'a> Parser<'a> {
             }
             self.expect_char(',')?;
             self.skip_whitespace();
-            identifiers.push(self.parse_bracketed_node()?);
+            identifiers.push(self.parse_identifier_node()?);
         }
 
         self.expect_char(']')?;
@@ -822,10 +906,11 @@ impl<'a> Parser<'a> {
                     self.expect_char(']')?;
                 }
                 Some("ID") => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    identifiers.push(self.parse_identifier_node()?);
                 }
                 _ => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
                 }
             }
         }
@@ -880,7 +965,7 @@ impl<'a> Parser<'a> {
 
             // If the next char starts a keyword (uppercase), it's an ID node
             if self.peek_keyword().is_some() {
-                identifiers.push(self.parse_bracketed_node()?);
+                identifiers.push(self.parse_identifier_node()?);
             } else {
                 // It's a number (conversion factor)
                 conversion_factor = Some(self.parse_number()?);
@@ -954,10 +1039,11 @@ impl<'a> Parser<'a> {
                     unit = Some(self.parse_unit()?);
                 }
                 Some("ID") => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    identifiers.push(self.parse_identifier_node()?);
                 }
                 _ => {
-                    identifiers.push(self.parse_bracketed_node()?);
+                    // Unknown node, skip it
+                    self.parse_bracketed_node()?;
                 }
             }
         }
@@ -1242,7 +1328,7 @@ mod tests {
 
         let cs = &result.coordinate_system;
         assert_eq!(cs.identifiers.len(), 1);
-        assert!(cs.identifiers[0].starts_with("ID["));
+        assert_eq!(cs.identifiers[0].authority_name, "EPSG");
         assert_eq!(cs.axes.len(), 2);
     }
 
@@ -1303,7 +1389,7 @@ mod tests {
         assert_eq!(eu.keyword, UnitKeyword::AngleUnit);
         assert_eq!(eu.name, "degree");
         assert_eq!(base.identifiers.len(), 1);
-        assert!(base.identifiers[0].starts_with("ID["));
+        assert_eq!(base.identifiers[0].authority_name, "EPSG");
     }
 
     #[test]
@@ -1504,7 +1590,7 @@ mod tests {
         let proj = &result.map_projection;
         assert_eq!(proj.parameters.len(), 1);
         assert_eq!(proj.identifiers.len(), 1);
-        assert!(proj.identifiers[0].starts_with("ID["));
+        assert_eq!(proj.identifiers[0].authority_name, "EPSG");
     }
 
     #[test]
@@ -1566,5 +1652,71 @@ mod tests {
         let mut parser = Parser::new(wkt);
         let err = parser.parse_projected_crs().unwrap_err();
         assert!(matches!(err, ParseError::TrailingInput { .. }));
+    }
+
+    #[test]
+    fn parse_identifier_number_id() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257],
+                ID["EPSG",6326]]],
+            CONVERSION["y", METHOD["m", ID["EPSG",9807]]],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let Datum::ReferenceFrame(ref rf) = result.base_geodetic_crs.datum else {
+            panic!("expected ReferenceFrame");
+        };
+        assert_eq!(rf.identifiers.len(), 1);
+        assert_eq!(rf.identifiers[0].authority_name, "EPSG");
+        assert_eq!(
+            rf.identifiers[0].authority_unique_id,
+            AuthorityId::Number(6326.0)
+        );
+
+        assert_eq!(
+            result.map_projection.method.identifiers[0].authority_name,
+            "EPSG"
+        );
+        assert_eq!(
+            result.map_projection.method.identifiers[0].authority_unique_id,
+            AuthorityId::Number(9807.0)
+        );
+    }
+
+    #[test]
+    fn parse_identifier_with_version_and_uri() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2, ID["EPSG",4400,URI["urn:ogc:def:cs:EPSG::4400"]]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let id = &result.coordinate_system.identifiers[0];
+        assert_eq!(id.authority_name, "EPSG");
+        assert_eq!(id.authority_unique_id, AuthorityId::Number(4400.0));
+        assert_eq!(id.uri.as_deref(), Some("urn:ogc:def:cs:EPSG::4400"));
+    }
+
+    #[test]
+    fn parse_identifier_text_id_with_version() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2, ID["Authority name","Abcd_Ef",7.1]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let id = &result.coordinate_system.identifiers[0];
+        assert_eq!(id.authority_name, "Authority name");
+        assert_eq!(
+            id.authority_unique_id,
+            AuthorityId::Text("Abcd_Ef".to_string())
+        );
+        assert_eq!(id.version, Some(AuthorityId::Number(7.1)));
     }
 }

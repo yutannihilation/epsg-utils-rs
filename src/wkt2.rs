@@ -11,7 +11,7 @@ pub struct ProjectedCrs {
 pub struct CoordinateSystem {
     pub cs_type: CsType,
     pub dimension: u8,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
     pub axes: Vec<Axis>,
     pub cs_unit: Option<Unit>,
 }
@@ -44,7 +44,7 @@ pub struct Axis {
     pub axis_min_value: Option<f64>,
     pub axis_max_value: Option<f64>,
     pub range_meaning: Option<RangeMeaning>,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -64,13 +64,13 @@ pub struct MapProjection {
     pub name: String,
     pub method: MapProjectionMethod,
     pub parameters: Vec<MapProjectionParameter>,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct MapProjectionMethod {
     pub name: String,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -78,7 +78,7 @@ pub struct MapProjectionParameter {
     pub name: String,
     pub value: f64,
     pub unit: Option<Unit>,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -98,7 +98,7 @@ pub struct BaseGeodeticCrs {
     /// Optional ellipsoidal CS unit
     pub ellipsoidal_cs_unit: Option<Unit>,
     /// Zero or more ID[...] nodes
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -110,7 +110,7 @@ pub struct DynamicCrs {
 #[derive(Debug, PartialEq)]
 pub struct DeformationModel {
     pub name: String,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -133,7 +133,7 @@ pub struct GeodeticReferenceFrame {
     pub ellipsoid: Ellipsoid,
     pub anchor: Option<String>,
     pub anchor_epoch: Option<f64>,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
     pub prime_meridian: Option<String>,
 }
 
@@ -143,7 +143,7 @@ pub struct Ellipsoid {
     pub semi_major_axis: f64,
     pub inverse_flattening: f64,
     pub unit: Option<Unit>,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -153,7 +153,7 @@ pub struct DatumEnsemble {
     /// Present for geodetic datum ensembles, absent for vertical
     pub ellipsoid: Option<Ellipsoid>,
     pub accuracy: f64,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
     /// Present for geodetic datum ensembles (sibling after ENSEMBLE[...])
     pub prime_meridian: Option<String>,
 }
@@ -161,7 +161,24 @@ pub struct DatumEnsemble {
 #[derive(Debug, PartialEq)]
 pub struct EnsembleMember {
     pub name: String,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Identifier {
+    pub authority_name: String,
+    /// Either a number or a quoted string
+    pub authority_unique_id: AuthorityId,
+    pub version: Option<AuthorityId>,
+    pub citation: Option<String>,
+    pub uri: Option<String>,
+}
+
+/// Either a number or a quoted string, used for authority_unique_identifier and version.
+#[derive(Debug, PartialEq)]
+pub enum AuthorityId {
+    Number(f64),
+    Text(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -181,5 +198,5 @@ pub struct Unit {
     pub name: String,
     /// Conversion factor to SI base unit. Optional only for TIMEUNIT.
     pub conversion_factor: Option<f64>,
-    pub identifiers: Vec<String>,
+    pub identifiers: Vec<Identifier>,
 }

@@ -5,8 +5,8 @@ mod wkt2;
 pub use error::ParseError;
 pub use parser::Parser;
 pub use wkt2::{
-    Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum, DatumEnsemble,
-    DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember, GeodeticReferenceFrame,
-    MapProjection, MapProjectionMethod, MapProjectionParameter, Meridian, ProjectedCrs,
-    RangeMeaning, Unit, UnitKeyword,
+    AuthorityId, Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum,
+    DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
+    GeodeticReferenceFrame, Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter,
+    Meridian, ProjectedCrs, RangeMeaning, Unit, UnitKeyword,
 };
