@@ -1,6 +1,9 @@
 mod error;
 mod parser;
 mod wkt2;
+mod wkt2_writer;
+#[cfg(test)]
+mod wkt2_writer_tests;
 
 pub use error::ParseError;
 pub use parser::Parser;
