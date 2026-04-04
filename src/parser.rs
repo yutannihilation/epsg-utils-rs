@@ -1,5 +1,5 @@
 use crate::error::ParseError;
-use crate::wkt2::ProjectedCrs;
+use crate::wkt2::{BaseGeodeticCrs, BaseGeodeticCrsKeyword, ProjectedCrs};
 
 pub struct Parser<'a> {
     input: &'a str,
@@ -40,7 +40,7 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         self.expect_char(',')?;
         self.skip_whitespace();
-        let base_geodetic_crs = self.parse_bracketed_node()?;
+        let base_geodetic_crs = self.parse_base_geodetic_crs()?;
 
         // <map projection>
         self.skip_whitespace();
@@ -81,6 +81,97 @@ impl<'a> Parser<'a> {
             coordinate_system,
             scope_extent_identifier_remark,
         })
+    }
+
+    fn parse_base_geodetic_crs(&mut self) -> Result<BaseGeodeticCrs, ParseError> {
+        let keyword_str = self.parse_keyword()?;
+        let keyword = match keyword_str.as_str() {
+            "BASEGEODCRS" => BaseGeodeticCrsKeyword::BaseGeodCrs,
+            "BASEGEOGCRS" => BaseGeodeticCrsKeyword::BaseGeogCrs,
+            _ => {
+                return Err(ParseError::ExpectedKeyword {
+                    pos: self.pos - keyword_str.len(),
+                });
+            }
+        };
+
+        self.skip_whitespace();
+        self.expect_char('[')?;
+
+        // <base crs name>
+        self.skip_whitespace();
+        let name = self.parse_quoted_string()?;
+
+        // Next is either DYNAMIC[...] (dynamic CRS) or DATUM[...]/ENSEMBLE[...] (static CRS)
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+
+        let peeked = self.peek_keyword();
+        let dynamic = if peeked.as_deref() == Some("DYNAMIC") {
+            let d = self.parse_bracketed_node()?;
+            self.skip_whitespace();
+            self.expect_char(',')?;
+            self.skip_whitespace();
+            Some(d)
+        } else {
+            None
+        };
+
+        // <geodetic reference frame> or <geodetic datum ensemble>
+        let datum = self.parse_bracketed_node()?;
+
+        // Optional components: ellipsoidal CS unit and identifiers
+        let mut ellipsoidal_cs_unit = None;
+        let mut identifiers = Vec::new();
+
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            let peeked = self.peek_keyword();
+            match peeked.as_deref() {
+                Some("ANGLEUNIT") => {
+                    ellipsoidal_cs_unit = Some(self.parse_bracketed_node()?);
+                }
+                Some("ID") => {
+                    identifiers.push(self.parse_bracketed_node()?);
+                }
+                _ => {
+                    // Unknown optional node, consume it
+                    identifiers.push(self.parse_bracketed_node()?);
+                }
+            }
+        }
+
+        self.expect_char(']')?;
+
+        Ok(BaseGeodeticCrs {
+            keyword,
+            name,
+            dynamic,
+            datum,
+            ellipsoidal_cs_unit,
+            identifiers,
+        })
+    }
+
+    /// Peek at the next keyword without advancing the position.
+    fn peek_keyword(&self) -> Option<String> {
+        let mut pos = self.pos;
+        let start = pos;
+        while pos < self.input.len() && self.input.as_bytes()[pos].is_ascii_uppercase() {
+            pos += 1;
+        }
+        if pos == start {
+            None
+        } else {
+            Some(self.input[start..pos].to_string())
+        }
     }
 
     fn skip_whitespace(&mut self) {
@@ -166,9 +257,10 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::wkt2::BaseGeodeticCrsKeyword;
 
     #[test]
-    fn parse_minimal_projcrs() {
+    fn parse_static_geogcrs() {
         let wkt = r#"PROJCRS["WGS 84 / UTM zone 31N",
             BASEGEOGCRS["WGS 84", DATUM["World Geodetic System 1984", ELLIPSOID["WGS 84",6378137,298.257223563]]],
             CONVERSION["UTM zone 31N", METHOD["Transverse Mercator"]],
@@ -178,16 +270,77 @@ mod tests {
         let result = parser.parse_projected_crs().unwrap();
 
         assert_eq!(result.name, "WGS 84 / UTM zone 31N");
-        assert!(result.base_geodetic_crs.starts_with("BASEGEOGCRS["));
-        assert!(result.map_projection.starts_with("CONVERSION["));
-        assert!(result.coordinate_system.starts_with("CS["));
-        assert!(result.scope_extent_identifier_remark.is_empty());
+        let base = &result.base_geodetic_crs;
+        assert_eq!(base.keyword, BaseGeodeticCrsKeyword::BaseGeogCrs);
+        assert_eq!(base.name, "WGS 84");
+        assert!(base.dynamic.is_none());
+        assert!(base.datum.starts_with("DATUM["));
+        assert!(base.ellipsoidal_cs_unit.is_none());
+        assert!(base.identifiers.is_empty());
+    }
+
+    #[test]
+    fn parse_dynamic_geodcrs() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEODCRS["WGS 84",
+                DYNAMIC[FRAMEEPOCH[2010.0]],
+                DATUM["World Geodetic System 1984", ELLIPSOID["WGS 84",6378137,298.257223563]]],
+            CONVERSION["y"],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let base = &result.base_geodetic_crs;
+        assert_eq!(base.keyword, BaseGeodeticCrsKeyword::BaseGeodCrs);
+        assert!(base.dynamic.is_some());
+        assert!(base.dynamic.as_ref().unwrap().starts_with("DYNAMIC["));
+        assert!(base.datum.starts_with("DATUM["));
+    }
+
+    #[test]
+    fn parse_base_crs_with_unit_and_id() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["WGS 84",
+                DATUM["WGS 1984", ELLIPSOID["WGS 84",6378137,298.257223563]],
+                ANGLEUNIT["degree", 0.0174532925199433],
+                ID["EPSG", 4326]],
+            CONVERSION["y"],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let base = &result.base_geodetic_crs;
+        assert!(base.ellipsoidal_cs_unit.is_some());
+        assert!(
+            base.ellipsoidal_cs_unit
+                .as_ref()
+                .unwrap()
+                .starts_with("ANGLEUNIT[")
+        );
+        assert_eq!(base.identifiers.len(), 1);
+        assert!(base.identifiers[0].starts_with("ID["));
+    }
+
+    #[test]
+    fn parse_base_crs_with_ensemble() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["WGS 84", ENSEMBLE["World Geodetic System 1984 ensemble", MEMBER["WGS 84 (G730)"], ELLIPSOID["WGS 84",6378137,298.257223563]]],
+            CONVERSION["y"],
+            CS[Cartesian, 2]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let base = &result.base_geodetic_crs;
+        assert!(base.datum.starts_with("ENSEMBLE["));
     }
 
     #[test]
     fn parse_projcrs_with_trailing_nodes() {
         let wkt = r#"PROJCRS["test",
-            BASEGEOGCRS["x"],
+            BASEGEOGCRS["x", DATUM["d"]],
             CONVERSION["y"],
             CS[Cartesian, 2],
             ID["EPSG", 32631]]"#;
@@ -201,7 +354,7 @@ mod tests {
 
     #[test]
     fn reject_projectedcrs() {
-        let wkt = r#"PROJECTEDCRS["test", BASEGEOGCRS["x"], CONVERSION["y"], CS[Cartesian, 2]]"#;
+        let wkt = r#"PROJECTEDCRS["test", BASEGEOGCRS["x", DATUM["d"]], CONVERSION["y"], CS[Cartesian, 2]]"#;
         let mut parser = Parser::new(wkt);
         let err = parser.parse_projected_crs().unwrap_err();
         assert!(matches!(err, ParseError::UnexpectedKeyword { .. }));
@@ -218,7 +371,7 @@ mod tests {
 
     #[test]
     fn trailing_input_error() {
-        let wkt = r#"PROJCRS["test", BASEGEOGCRS["x"], CONVERSION["y"], CS[Cartesian, 2]] extra"#;
+        let wkt = r#"PROJCRS["test", BASEGEOGCRS["x", DATUM["d"]], CONVERSION["y"], CS[Cartesian, 2]] extra"#;
         let mut parser = Parser::new(wkt);
         let err = parser.parse_projected_crs().unwrap_err();
         assert!(matches!(err, ParseError::TrailingInput { .. }));
