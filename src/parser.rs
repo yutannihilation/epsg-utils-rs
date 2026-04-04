@@ -2,7 +2,8 @@ use crate::error::ParseError;
 use crate::wkt2::{
     Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum, DatumEnsemble,
     DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember, GeodeticReferenceFrame,
-    MapProjection, MapProjectionMethod, MapProjectionParameter, ProjectedCrs, Unit, UnitKeyword,
+    MapProjection, MapProjectionMethod, MapProjectionParameter, Meridian, ProjectedCrs,
+    RangeMeaning, Unit, UnitKeyword,
 };
 
 pub struct Parser<'a> {
@@ -376,6 +377,9 @@ impl<'a> Parser<'a> {
         let mut bearing = None;
         let mut order = None;
         let mut unit = None;
+        let mut axis_min_value = None;
+        let mut axis_max_value = None;
+        let mut range_meaning = None;
         let mut identifiers = Vec::new();
 
         loop {
@@ -388,22 +392,30 @@ impl<'a> Parser<'a> {
 
             match self.peek_keyword().as_deref() {
                 Some("MERIDIAN") => {
-                    meridian = Some(self.parse_bracketed_node()?);
+                    meridian = Some(self.parse_meridian()?);
                 }
                 Some("BEARING") => {
-                    bearing = Some(self.parse_bracketed_node()?);
+                    bearing = Some(self.parse_keyword_number("BEARING")?);
                 }
                 Some("ORDER") => {
-                    order = Some(self.parse_order()?);
+                    order = Some(self.parse_keyword_number("ORDER")? as u32);
                 }
                 Some(kw) if Self::is_unit_keyword(kw) => {
                     unit = Some(self.parse_unit()?);
+                }
+                Some("AXISMINVALUE") => {
+                    axis_min_value = Some(self.parse_keyword_number("AXISMINVALUE")?);
+                }
+                Some("AXISMAXVALUE") => {
+                    axis_max_value = Some(self.parse_keyword_number("AXISMAXVALUE")?);
+                }
+                Some("RANGEMEANING") => {
+                    range_meaning = Some(self.parse_range_meaning()?);
                 }
                 Some("ID") => {
                     identifiers.push(self.parse_bracketed_node()?);
                 }
                 _ => {
-                    // AXISMINVALUE, AXISMAXVALUE, RANGEMEANING, or unknown
                     self.parse_bracketed_node()?;
                 }
             }
@@ -418,13 +430,17 @@ impl<'a> Parser<'a> {
             bearing,
             order,
             unit,
+            axis_min_value,
+            axis_max_value,
+            range_meaning,
             identifiers,
         })
     }
 
-    fn parse_order(&mut self) -> Result<u32, ParseError> {
+    /// Parse KEYWORD[number] — used for ORDER, BEARING, AXISMINVALUE, AXISMAXVALUE.
+    fn parse_keyword_number(&mut self, expected: &str) -> Result<f64, ParseError> {
         let keyword = self.parse_keyword()?;
-        if keyword != "ORDER" {
+        if keyword != expected {
             return Err(ParseError::ExpectedKeyword {
                 pos: self.pos - keyword.len(),
             });
@@ -432,10 +448,57 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         self.expect_char('[')?;
         self.skip_whitespace();
-        let value = self.parse_number()? as u32;
+        let value = self.parse_number()?;
         self.skip_whitespace();
         self.expect_char(']')?;
         Ok(value)
+    }
+
+    fn parse_meridian(&mut self) -> Result<Meridian, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "MERIDIAN" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let value = self.parse_number()?;
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let unit = self.parse_unit()?;
+        self.skip_whitespace();
+        self.expect_char(']')?;
+        Ok(Meridian { value, unit })
+    }
+
+    fn parse_range_meaning(&mut self) -> Result<RangeMeaning, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "RANGEMEANING" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let value = self.parse_identifier()?;
+        let meaning = match value.as_str() {
+            "exact" => RangeMeaning::Exact,
+            "wraparound" => RangeMeaning::Wraparound,
+            _ => {
+                let len = value.len();
+                return Err(ParseError::UnexpectedKeyword {
+                    keyword: value,
+                    pos: self.pos - len,
+                });
+            }
+        };
+        self.skip_whitespace();
+        self.expect_char(']')?;
+        Ok(meaning)
     }
 
     /// Parse an unquoted identifier (mixed case, alphabetic).
@@ -1112,20 +1175,39 @@ mod tests {
         let result = parser.parse_projected_crs().unwrap();
 
         let cs = &result.coordinate_system;
-        assert!(
-            cs.axes[0]
-                .meridian
-                .as_ref()
-                .unwrap()
-                .starts_with("MERIDIAN[")
-        );
-        assert!(
-            cs.axes[1]
-                .meridian
-                .as_ref()
-                .unwrap()
-                .starts_with("MERIDIAN[")
-        );
+        let m0 = cs.axes[0].meridian.as_ref().unwrap();
+        assert_eq!(m0.value, 90.0);
+        assert_eq!(m0.unit.keyword, UnitKeyword::AngleUnit);
+        let m1 = cs.axes[1].meridian.as_ref().unwrap();
+        assert_eq!(m1.value, 0.0);
+        assert_eq!(m1.unit.keyword, UnitKeyword::AngleUnit);
+    }
+
+    #[test]
+    fn parse_axis_bearing_and_range() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2],
+                AXIS["x", clockwise, BEARING[90], ORDER[1],
+                    AXISMINVALUE[0], AXISMAXVALUE[360], RANGEMEANING[wraparound]],
+                AXIS["y", clockwise, BEARING[0], ORDER[2]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let ax0 = &result.coordinate_system.axes[0];
+        assert_eq!(ax0.direction, "clockwise");
+        assert_eq!(ax0.bearing, Some(90.0));
+        assert_eq!(ax0.order, Some(1));
+        assert_eq!(ax0.axis_min_value, Some(0.0));
+        assert_eq!(ax0.axis_max_value, Some(360.0));
+        assert_eq!(ax0.range_meaning, Some(RangeMeaning::Wraparound));
+
+        let ax1 = &result.coordinate_system.axes[1];
+        assert_eq!(ax1.bearing, Some(0.0));
+        assert!(ax1.axis_min_value.is_none());
+        assert!(ax1.range_meaning.is_none());
     }
 
     #[test]

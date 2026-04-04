@@ -37,11 +37,26 @@ pub enum CsType {
 pub struct Axis {
     pub name_abbrev: String,
     pub direction: String,
-    pub meridian: Option<String>,
-    pub bearing: Option<String>,
+    pub meridian: Option<Meridian>,
+    pub bearing: Option<f64>,
     pub order: Option<u32>,
     pub unit: Option<Unit>,
+    pub axis_min_value: Option<f64>,
+    pub axis_max_value: Option<f64>,
+    pub range_meaning: Option<RangeMeaning>,
     pub identifiers: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Meridian {
+    pub value: f64,
+    pub unit: Unit,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum RangeMeaning {
+    Exact,
+    Wraparound,
 }
 
 #[derive(Debug, PartialEq)]

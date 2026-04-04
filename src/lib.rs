@@ -7,5 +7,6 @@ pub use parser::Parser;
 pub use wkt2::{
     Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum, DatumEnsemble,
     DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember, GeodeticReferenceFrame,
-    MapProjection, MapProjectionMethod, MapProjectionParameter, ProjectedCrs, Unit, UnitKeyword,
+    MapProjection, MapProjectionMethod, MapProjectionParameter, Meridian, ProjectedCrs,
+    RangeMeaning, Unit, UnitKeyword,
 };
