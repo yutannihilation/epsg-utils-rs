@@ -1,5 +1,8 @@
 mod error;
 mod parser;
+mod projjson_writer;
+#[cfg(test)]
+mod projjson_writer_tests;
 mod wkt2;
 mod wkt2_writer;
 #[cfg(test)]
