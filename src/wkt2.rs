@@ -78,12 +78,18 @@ pub struct BaseGeodeticCrs {
     pub name: String,
     /// Present only for dynamic CRS (e.g. DYNAMIC[...])
     pub dynamic: Option<String>,
-    /// Either a geodetic reference frame or datum ensemble (ENSEMBLE[...], still raw)
-    pub datum: GeodeticReferenceFrame,
+    /// Either a geodetic reference frame or a datum ensemble
+    pub datum: Datum,
     /// Optional ellipsoidal CS unit (ANGLEUNIT[...])
     pub ellipsoidal_cs_unit: Option<String>,
     /// Zero or more ID[...] nodes
     pub identifiers: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Datum {
+    ReferenceFrame(GeodeticReferenceFrame),
+    Ensemble(DatumEnsemble),
 }
 
 #[derive(Debug, PartialEq)]
@@ -110,5 +116,23 @@ pub struct Ellipsoid {
     pub semi_major_axis: f64,
     pub inverse_flattening: f64,
     pub unit: Option<String>,
+    pub identifiers: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct DatumEnsemble {
+    pub name: String,
+    pub members: Vec<EnsembleMember>,
+    /// Present for geodetic datum ensembles, absent for vertical
+    pub ellipsoid: Option<Ellipsoid>,
+    pub accuracy: f64,
+    pub identifiers: Vec<String>,
+    /// Present for geodetic datum ensembles (sibling after ENSEMBLE[...])
+    pub prime_meridian: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct EnsembleMember {
+    pub name: String,
     pub identifiers: Vec<String>,
 }
