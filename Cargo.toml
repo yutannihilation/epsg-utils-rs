@@ -6,5 +6,9 @@ name = "epsg-utils"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+wkt2-definitions = []
+projjson-definitions = []
+
 [dependencies]
 serde_json = "1"

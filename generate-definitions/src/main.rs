@@ -4,8 +4,22 @@ use std::path::Path;
 fn main() {
     let wkt_dir = Path::new("data-raw/EPSG-v12_054-WKT");
 
-    // For now, process only EPSG-CRS-6678.wkt as a proof of concept
-    let files = ["EPSG-CRS-6678.wkt"];
+    // Collect all EPSG-CRS-*.wkt files
+    let mut files: Vec<_> = fs::read_dir(wkt_dir)
+        .unwrap_or_else(|e| panic!("Failed to read {}: {e}", wkt_dir.display()))
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name().into_string().ok()?;
+            if name.starts_with("EPSG-CRS-") && name.ends_with(".wkt") {
+                Some(name)
+            } else {
+                None
+            }
+        })
+        .collect();
+    files.sort();
+
+    println!("Found {} CRS files", files.len());
 
     let mut wkt_output = String::new();
     let mut json_output = String::new();
@@ -26,6 +40,7 @@ fn main() {
     header(&mut json_output, "PROJJSON");
 
     let mut entries = Vec::new();
+    let mut skipped = 0u32;
 
     for filename in &files {
         let path = wkt_dir.join(filename);
@@ -33,9 +48,21 @@ fn main() {
             .unwrap_or_else(|e| panic!("Failed to read {}: {e}", path.display()));
         let wkt = wkt.trim();
 
-        // Parse and convert to PROJJSON
-        let crs = epsg_utils::parse_wkt2(wkt)
-            .unwrap_or_else(|e| panic!("Failed to parse {}: {e}", path.display()));
+        // Only process PROJCRS definitions (skip GEOGCRS, VERTCRS, etc.)
+        if !wkt.starts_with("PROJCRS[") {
+            skipped += 1;
+            continue;
+        }
+
+        let crs = match epsg_utils::parse_wkt2(wkt) {
+            Ok(crs) => crs,
+            Err(e) => {
+                eprintln!("  WARN: skipping {} (parse error: {e})", filename);
+                skipped += 1;
+                continue;
+            }
+        };
+
         let projjson = serde_json::to_string(&crs.to_projjson())
             .unwrap_or_else(|e| panic!("Failed to serialize {}: {e}", path.display()));
 
@@ -45,8 +72,6 @@ fn main() {
             .and_then(|s| s.strip_suffix(".wkt"))
             .and_then(|s| s.parse().ok())
             .unwrap_or_else(|| panic!("Cannot extract EPSG code from {filename}"));
-
-        println!("  EPSG:{code} — {}", crs.name);
 
         // WKT2 constant
         wkt_output.push_str(&format!("/// EPSG:{code} — {}\n", crs.name));
@@ -81,5 +106,9 @@ fn main() {
     write_file("src/wkt2_definitions.rs", &wkt_output);
     write_file("src/projjson_definitions.rs", &json_output);
 
-    println!("{} entries", entries.len());
+    println!(
+        "{} PROJCRS entries generated, {} files skipped",
+        entries.len(),
+        skipped
+    );
 }
