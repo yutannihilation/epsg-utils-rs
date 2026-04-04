@@ -47,6 +47,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn to_epsg_found() {
+        let crs = parse_wkt2(
+            r#"PROJCRS["test",
+                BASEGEOGCRS["x",DATUM["d",ELLIPSOID["e",6378137,298.257]]],
+                CONVERSION["y",METHOD["m"]],
+                CS[Cartesian,2],
+                ID["EPSG",32631]]"#,
+        )
+        .unwrap();
+        assert_eq!(crs.to_epsg(), Some(32631));
+    }
+
+    #[test]
+    fn to_epsg_not_found() {
+        let crs = parse_wkt2(
+            r#"PROJCRS["test",
+                BASEGEOGCRS["x",DATUM["d",ELLIPSOID["e",6378137,298.257]]],
+                CONVERSION["y",METHOD["m"]],
+                CS[Cartesian,2]]"#,
+        )
+        .unwrap();
+        assert_eq!(crs.to_epsg(), None);
+    }
+
+    #[test]
     #[cfg(feature = "wkt2-definitions")]
     fn epsg_to_wkt2_6678() {
         let wkt = epsg_to_wkt2(6678).unwrap();

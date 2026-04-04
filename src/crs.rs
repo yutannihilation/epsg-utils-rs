@@ -22,6 +22,23 @@ pub struct ProjectedCrs {
     pub remark: Option<String>,
 }
 
+impl ProjectedCrs {
+    /// Extract the EPSG code from this CRS's identifiers, if present.
+    ///
+    /// Returns `Some(code)` if the CRS has an identifier with authority "EPSG"
+    /// and a numeric code, or `None` otherwise.
+    pub fn to_epsg(&self) -> Option<i32> {
+        self.identifiers.iter().find_map(|id| {
+            if id.authority_name == "EPSG" {
+                if let AuthorityId::Number(n) = id.authority_unique_id {
+                    return Some(n as i32);
+                }
+            }
+            None
+        })
+    }
+}
+
 /// A coordinate system definition, consisting of a type, dimension, axes, and an optional
 /// shared unit.
 ///
