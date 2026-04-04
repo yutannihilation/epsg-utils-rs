@@ -1,5 +1,6 @@
 mod error;
 mod parser;
+mod projjson_reader;
 mod projjson_writer;
 #[cfg(test)]
 mod projjson_writer_tests;
@@ -20,4 +21,9 @@ pub use wkt2::{
 /// Parse a WKT2 string into a [`ProjectedCrs`].
 pub fn parse_wkt2(input: &str) -> Result<ProjectedCrs, ParseError> {
     parser::Parser::new(input).parse_projected_crs()
+}
+
+/// Parse a PROJJSON string into a [`ProjectedCrs`].
+pub fn parse_projjson(input: &str) -> Result<ProjectedCrs, ParseError> {
+    projjson_reader::parse_projjson(input)
 }

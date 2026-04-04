@@ -19,6 +19,9 @@ pub enum ParseError {
     TrailingInput {
         pos: usize,
     },
+    InvalidJson {
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ParseError {
@@ -49,6 +52,9 @@ impl std::fmt::Display for ParseError {
             }
             ParseError::TrailingInput { pos } => {
                 write!(f, "trailing input at position {pos}")
+            }
+            ParseError::InvalidJson { message } => {
+                write!(f, "invalid PROJJSON: {message}")
             }
         }
     }

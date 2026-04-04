@@ -474,4 +474,173 @@ mod tests {
                 .contains("projjson.schema.json")
         );
     }
+
+    // -----------------------------------------------------------------------
+    // PROJJSON round-trip tests: WKT2 → struct → PROJJSON → struct → compare
+    // -----------------------------------------------------------------------
+
+    /// Parse WKT2 → struct, emit PROJJSON, parse PROJJSON back, compare.
+    /// Note: some fields don't survive the round-trip perfectly (e.g. ORDER,
+    /// BEARING, datum keyword), so we compare key semantic fields.
+    fn assert_projjson_roundtrip(wkt: &str) {
+        let original = parse_wkt2(wkt).unwrap();
+        let json_str = serde_json::to_string(&original.to_projjson()).unwrap();
+        let reparsed = crate::parse_projjson(&json_str)
+            .unwrap_or_else(|e| panic!("Failed to parse PROJJSON:\n{json_str}\nError: {e}"));
+
+        // Compare key fields
+        assert_eq!(original.name, reparsed.name);
+        assert_eq!(
+            original.base_geodetic_crs.name,
+            reparsed.base_geodetic_crs.name
+        );
+        assert_eq!(original.map_projection.name, reparsed.map_projection.name);
+        assert_eq!(
+            original.map_projection.method.name,
+            reparsed.map_projection.method.name
+        );
+        assert_eq!(
+            original.map_projection.parameters.len(),
+            reparsed.map_projection.parameters.len()
+        );
+        assert_eq!(
+            original.coordinate_system.cs_type,
+            reparsed.coordinate_system.cs_type
+        );
+        assert_eq!(
+            original.coordinate_system.axes.len(),
+            reparsed.coordinate_system.axes.len()
+        );
+        assert_eq!(original.usages.len(), reparsed.usages.len());
+        assert_eq!(original.identifiers.len(), reparsed.identifiers.len());
+        assert_eq!(original.remark, reparsed.remark);
+    }
+
+    #[test]
+    fn projjson_roundtrip_minimal() {
+        assert_projjson_roundtrip(
+            r#"PROJCRS["test",
+                BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+                CONVERSION["y", METHOD["m"]],
+                CS[Cartesian,2]]"#,
+        );
+    }
+
+    #[test]
+    fn projjson_roundtrip_full_utm() {
+        assert_projjson_roundtrip(
+            r#"PROJCRS["WGS 84 / UTM zone 31N",
+                BASEGEOGCRS["WGS 84",
+                    DATUM["World Geodetic System 1984",
+                        ELLIPSOID["WGS 84",6378137,298.257223563]]],
+                CONVERSION["UTM zone 31N",
+                    METHOD["Transverse Mercator",ID["EPSG",9807]],
+                    PARAMETER["Latitude of natural origin",0,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],
+                    PARAMETER["Longitude of natural origin",3,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],
+                    PARAMETER["Scale factor",0.9996,SCALEUNIT["unity",1],ID["EPSG",8805]],
+                    PARAMETER["False easting",500000,LENGTHUNIT["metre",1],ID["EPSG",8806]],
+                    PARAMETER["False northing",0,LENGTHUNIT["metre",1],ID["EPSG",8807]]],
+                CS[Cartesian,2],
+                    AXIS["easting (E)",east,ORDER[1]],
+                    AXIS["northing (N)",north,ORDER[2]],
+                    LENGTHUNIT["metre",1],
+                ID["EPSG",32631]]"#,
+        );
+    }
+
+    #[test]
+    fn projjson_roundtrip_dynamic() {
+        assert_projjson_roundtrip(
+            r#"PROJCRS["test",
+                BASEGEODCRS["WGS 84",
+                    DYNAMIC[FRAMEEPOCH[2010]],
+                    DATUM["World Geodetic System 1984",
+                        ELLIPSOID["WGS 84",6378137,298.257223563]]],
+                CONVERSION["y", METHOD["m"]],
+                CS[Cartesian,2]]"#,
+        );
+    }
+
+    #[test]
+    fn projjson_roundtrip_ensemble() {
+        assert_projjson_roundtrip(
+            r#"PROJCRS["test",
+                BASEGEOGCRS["WGS 84",
+                    ENSEMBLE["WGS 84 ensemble",
+                        MEMBER["WGS 84 (TRANSIT)"],
+                        MEMBER["WGS 84 (G730)",ID["EPSG",1152]],
+                        ELLIPSOID["WGS 84",6378137,298.2572236,LENGTHUNIT["metre",1]],
+                        ENSEMBLEACCURACY[2]]],
+                CONVERSION["y", METHOD["m"]],
+                CS[Cartesian,2]]"#,
+        );
+    }
+
+    #[test]
+    fn projjson_roundtrip_usage_and_remark() {
+        assert_projjson_roundtrip(
+            r#"PROJCRS["test",
+                BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+                CONVERSION["y", METHOD["m"]],
+                CS[Cartesian,2],
+                USAGE[SCOPE["Engineering"],AREA["Netherlands"],BBOX[51.43,2.54,55.77,6.40]],
+                ID["EPSG",32631],
+                REMARK["A test CRS"]]"#,
+        );
+    }
+
+    #[test]
+    fn projjson_roundtrip_prime_meridian() {
+        assert_projjson_roundtrip(
+            r#"PROJCRS["test",
+                BASEGEOGCRS["x",
+                    DATUM["d",ELLIPSOID["e",6378137,298.257]],
+                    PRIMEM["Paris",2.5969213,ANGLEUNIT["grad",0.015707963267949]]],
+                CONVERSION["y", METHOD["m"]],
+                CS[Cartesian,2]]"#,
+        );
+    }
+
+    #[test]
+    fn parse_projjson_raw_string() {
+        let json = r#"{
+            "type": "ProjectedCRS",
+            "name": "WGS 84 / UTM zone 31N",
+            "base_crs": {
+                "type": "GeographicCRS",
+                "name": "WGS 84",
+                "datum": {
+                    "type": "GeodeticReferenceFrame",
+                    "name": "World Geodetic System 1984",
+                    "ellipsoid": {
+                        "name": "WGS 84",
+                        "semi_major_axis": 6378137,
+                        "inverse_flattening": 298.257223563
+                    }
+                }
+            },
+            "conversion": {
+                "name": "UTM zone 31N",
+                "method": { "name": "Transverse Mercator" }
+            },
+            "coordinate_system": {
+                "subtype": "Cartesian",
+                "axis": [
+                    { "name": "Easting", "abbreviation": "E", "direction": "east", "unit": "metre" },
+                    { "name": "Northing", "abbreviation": "N", "direction": "north", "unit": "metre" }
+                ]
+            },
+            "id": { "authority": "EPSG", "code": 32631 }
+        }"#;
+
+        let crs = crate::parse_projjson(json).unwrap();
+        assert_eq!(crs.name, "WGS 84 / UTM zone 31N");
+        assert_eq!(crs.base_geodetic_crs.name, "WGS 84");
+        assert_eq!(crs.map_projection.name, "UTM zone 31N");
+        assert_eq!(crs.coordinate_system.axes.len(), 2);
+        assert_eq!(crs.coordinate_system.axes[0].name_abbrev, "Easting (E)");
+        assert_eq!(crs.coordinate_system.axes[0].direction, "east");
+        assert_eq!(crs.identifiers.len(), 1);
+        assert_eq!(crs.identifiers[0].authority_name, "EPSG");
+    }
 }
