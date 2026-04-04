@@ -1,9 +1,10 @@
 use crate::error::ParseError;
 use crate::wkt2::{
-    AuthorityId, Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum,
-    DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
+    AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType,
+    Datum, DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
     GeodeticReferenceFrame, Identifier, MapProjection, MapProjectionMethod, MapProjectionParameter,
-    Meridian, PrimeMeridian, ProjectedCrs, RangeMeaning, Unit, UnitKeyword, Usage,
+    Meridian, PrimeMeridian, ProjectedCrs, RangeMeaning, TemporalExtent, Unit, UnitKeyword, Usage,
+    VerticalExtent,
 };
 
 pub struct Parser<'a> {
@@ -316,25 +317,58 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         self.expect_char('[')?;
 
-        // <scope> — a bracketed node like SCOPE[...]
+        // <scope>
         self.skip_whitespace();
-        let scope = self.parse_bracketed_node()?;
+        let scope = self.parse_scope()?;
 
-        // <extent> — a bracketed node like AREA[...] or BBOX[...]
-        self.skip_whitespace();
-        self.expect_char(',')?;
-        self.skip_whitespace();
-        let extent = self.parse_bracketed_node()?;
+        // Extent items — comma-separated: AREA, BBOX, VERTICALEXTENT, TIMEEXTENT
+        let mut area = None;
+        let mut bbox = None;
+        let mut vertical_extent = None;
+        let mut temporal_extent = None;
 
-        self.skip_whitespace();
+        loop {
+            self.skip_whitespace();
+            if self.peek_char() == Some(']') {
+                break;
+            }
+            self.expect_char(',')?;
+            self.skip_whitespace();
+
+            match self.peek_keyword().as_deref() {
+                Some("AREA") => {
+                    area = Some(self.parse_keyword_quoted_string("AREA")?);
+                }
+                Some("BBOX") => {
+                    bbox = Some(self.parse_bbox()?);
+                }
+                Some("VERTICALEXTENT") => {
+                    vertical_extent = Some(self.parse_vertical_extent()?);
+                }
+                Some("TIMEEXTENT") => {
+                    temporal_extent = Some(self.parse_temporal_extent()?);
+                }
+                _ => {
+                    self.parse_bracketed_node()?;
+                }
+            }
+        }
+
         self.expect_char(']')?;
 
-        Ok(Usage { scope, extent })
+        Ok(Usage {
+            scope,
+            area,
+            bbox,
+            vertical_extent,
+            temporal_extent,
+        })
     }
 
-    fn parse_remark(&mut self) -> Result<String, ParseError> {
+    /// Parse KEYWORD["text"] — used for SCOPE, AREA, REMARK.
+    fn parse_keyword_quoted_string(&mut self, expected: &str) -> Result<String, ParseError> {
         let keyword = self.parse_keyword()?;
-        if keyword != "REMARK" {
+        if keyword != expected {
             return Err(ParseError::ExpectedKeyword {
                 pos: self.pos - keyword.len(),
             });
@@ -346,6 +380,121 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         self.expect_char(']')?;
         Ok(text)
+    }
+
+    fn parse_bbox(&mut self) -> Result<BBox, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "BBOX" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let lower_left_latitude = self.parse_number()?;
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let lower_left_longitude = self.parse_number()?;
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let upper_right_latitude = self.parse_number()?;
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let upper_right_longitude = self.parse_number()?;
+        self.skip_whitespace();
+        self.expect_char(']')?;
+        Ok(BBox {
+            lower_left_latitude,
+            lower_left_longitude,
+            upper_right_latitude,
+            upper_right_longitude,
+        })
+    }
+
+    fn parse_vertical_extent(&mut self) -> Result<VerticalExtent, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "VERTICALEXTENT" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let minimum_height = self.parse_number()?;
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let maximum_height = self.parse_number()?;
+
+        let mut unit = None;
+        self.skip_whitespace();
+        if self.peek_char() != Some(']') {
+            self.expect_char(',')?;
+            self.skip_whitespace();
+            unit = Some(self.parse_unit()?);
+            self.skip_whitespace();
+        }
+        self.expect_char(']')?;
+
+        Ok(VerticalExtent {
+            minimum_height,
+            maximum_height,
+            unit,
+        })
+    }
+
+    fn parse_temporal_extent(&mut self) -> Result<TemporalExtent, ParseError> {
+        let keyword = self.parse_keyword()?;
+        if keyword != "TIMEEXTENT" {
+            return Err(ParseError::ExpectedKeyword {
+                pos: self.pos - keyword.len(),
+            });
+        }
+        self.skip_whitespace();
+        self.expect_char('[')?;
+        self.skip_whitespace();
+        let start = self.parse_datetime_or_text()?;
+        self.skip_whitespace();
+        self.expect_char(',')?;
+        self.skip_whitespace();
+        let end = self.parse_datetime_or_text()?;
+        self.skip_whitespace();
+        self.expect_char(']')?;
+        Ok(TemporalExtent { start, end })
+    }
+
+    /// Parse a datetime (unquoted, like 2013-01-01) or quoted text.
+    fn parse_datetime_or_text(&mut self) -> Result<String, ParseError> {
+        if self.peek_char() == Some('"') {
+            self.parse_quoted_string()
+        } else {
+            // Consume until comma or ]
+            let start = self.pos;
+            while self.pos < self.input.len() {
+                let ch = self.input.as_bytes()[self.pos];
+                if ch == b',' || ch == b']' {
+                    break;
+                }
+                self.pos += 1;
+            }
+            if self.pos == start {
+                return Err(ParseError::UnexpectedEnd);
+            }
+            Ok(self.input[start..self.pos].trim().to_string())
+        }
+    }
+
+    fn parse_scope(&mut self) -> Result<String, ParseError> {
+        self.parse_keyword_quoted_string("SCOPE")
+    }
+
+    fn parse_remark(&mut self) -> Result<String, ParseError> {
+        self.parse_keyword_quoted_string("REMARK")
     }
 
     fn parse_cs_header(&mut self) -> Result<(CsType, u8, Vec<Identifier>), ParseError> {
@@ -1785,11 +1934,82 @@ mod tests {
         let result = parser.parse_projected_crs().unwrap();
 
         assert_eq!(result.usages.len(), 2);
-        assert!(result.usages[0].scope.starts_with("SCOPE["));
-        assert!(result.usages[0].extent.starts_with("AREA["));
-        assert!(result.usages[1].scope.starts_with("SCOPE["));
+        assert_eq!(result.usages[0].scope, "Engineering survey");
+        assert_eq!(result.usages[0].area.as_deref(), Some("Netherlands"));
+        assert_eq!(result.usages[1].scope, "Cadastre");
+        assert_eq!(result.usages[1].area.as_deref(), Some("Germany"));
         assert_eq!(result.identifiers.len(), 1);
         assert_eq!(result.remark.as_deref(), Some("This is a test CRS"));
+    }
+
+    #[test]
+    fn parse_usage_with_bbox_and_temporal() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2],
+            USAGE[SCOPE["Spatial referencing."],
+                AREA["Netherlands offshore."],TIMEEXTENT[1976-01,2001-04]],
+            USAGE[SCOPE["Cadastre."],
+                AREA["Finland - onshore between 26 and 27."],
+                BBOX[60.36,26.5,70.05,27.5]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        assert_eq!(result.usages.len(), 2);
+
+        let u0 = &result.usages[0];
+        assert_eq!(u0.scope, "Spatial referencing.");
+        assert_eq!(u0.area.as_deref(), Some("Netherlands offshore."));
+        let te = u0.temporal_extent.as_ref().unwrap();
+        assert_eq!(te.start, "1976-01");
+        assert_eq!(te.end, "2001-04");
+        assert!(u0.bbox.is_none());
+
+        let u1 = &result.usages[1];
+        assert_eq!(u1.scope, "Cadastre.");
+        let bb = u1.bbox.as_ref().unwrap();
+        assert_eq!(bb.lower_left_latitude, 60.36);
+        assert_eq!(bb.lower_left_longitude, 26.5);
+        assert_eq!(bb.upper_right_latitude, 70.05);
+        assert_eq!(bb.upper_right_longitude, 27.5);
+        assert!(u1.temporal_extent.is_none());
+    }
+
+    #[test]
+    fn parse_usage_with_vertical_extent() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2],
+            USAGE[SCOPE["Offshore engineering."],
+                VERTICALEXTENT[-1000,0,LENGTHUNIT["metre",1.0]]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let ve = result.usages[0].vertical_extent.as_ref().unwrap();
+        assert_eq!(ve.minimum_height, -1000.0);
+        assert_eq!(ve.maximum_height, 0.0);
+        assert_eq!(ve.unit.as_ref().unwrap().keyword, UnitKeyword::LengthUnit);
+    }
+
+    #[test]
+    fn parse_usage_with_temporal_quoted() {
+        let wkt = r#"PROJCRS["test",
+            BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]],
+            CONVERSION["y", METHOD["m"]],
+            CS[Cartesian, 2],
+            USAGE[SCOPE["Geology."],
+                TIMEEXTENT["Jurassic","Quaternary"]]]"#;
+
+        let mut parser = Parser::new(wkt);
+        let result = parser.parse_projected_crs().unwrap();
+
+        let te = result.usages[0].temporal_extent.as_ref().unwrap();
+        assert_eq!(te.start, "Jurassic");
+        assert_eq!(te.end, "Quaternary");
     }
 
     #[test]

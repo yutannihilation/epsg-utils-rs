@@ -204,10 +204,32 @@ pub enum UnitKeyword {
 
 #[derive(Debug, PartialEq)]
 pub struct Usage {
-    /// Raw scope string (unparsed for now)
     pub scope: String,
-    /// Raw extent string (unparsed for now)
-    pub extent: String,
+    pub area: Option<String>,
+    pub bbox: Option<BBox>,
+    pub vertical_extent: Option<VerticalExtent>,
+    pub temporal_extent: Option<TemporalExtent>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct BBox {
+    pub lower_left_latitude: f64,
+    pub lower_left_longitude: f64,
+    pub upper_right_latitude: f64,
+    pub upper_right_longitude: f64,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct VerticalExtent {
+    pub minimum_height: f64,
+    pub maximum_height: f64,
+    pub unit: Option<Unit>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TemporalExtent {
+    pub start: String,
+    pub end: String,
 }
 
 #[derive(Debug, PartialEq)]
