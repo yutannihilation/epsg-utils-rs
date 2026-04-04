@@ -1,9 +1,8 @@
 use crate::error::ParseError;
 use crate::wkt2::{
     Axis, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CoordinateSystem, CsType, Datum, DatumEnsemble,
-    DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
-    GeodeticReferenceFrame, MapProjection, MapProjectionMethod, MapProjectionParameter,
-    ProjectedCrs, Unit, UnitKeyword,
+    DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember, GeodeticReferenceFrame,
+    MapProjection, MapProjectionMethod, MapProjectionParameter, ProjectedCrs, Unit, UnitKeyword,
 };
 
 pub struct Parser<'a> {
@@ -1067,8 +1066,14 @@ mod tests {
 
         let cs = &result.coordinate_system;
         assert_eq!(cs.axes.len(), 2);
-        assert_eq!(cs.axes[0].unit.as_ref().unwrap().keyword, UnitKeyword::LengthUnit);
-        assert_eq!(cs.axes[1].unit.as_ref().unwrap().keyword, UnitKeyword::LengthUnit);
+        assert_eq!(
+            cs.axes[0].unit.as_ref().unwrap().keyword,
+            UnitKeyword::LengthUnit
+        );
+        assert_eq!(
+            cs.axes[1].unit.as_ref().unwrap().keyword,
+            UnitKeyword::LengthUnit
+        );
         assert!(cs.cs_unit.is_none());
     }
 
@@ -1088,7 +1093,10 @@ mod tests {
         assert_eq!(cs.cs_type, CsType::Ellipsoidal);
         assert_eq!(cs.dimension, 2);
         assert_eq!(cs.axes[0].direction, "north");
-        assert_eq!(cs.axes[0].unit.as_ref().unwrap().keyword, UnitKeyword::AngleUnit);
+        assert_eq!(
+            cs.axes[0].unit.as_ref().unwrap().keyword,
+            UnitKeyword::AngleUnit
+        );
     }
 
     #[test]
@@ -1291,7 +1299,10 @@ mod tests {
         assert_eq!(rf.ellipsoid.name, "International 1924");
         assert_eq!(rf.ellipsoid.semi_major_axis, 6378388.0);
         assert_eq!(rf.ellipsoid.inverse_flattening, 297.0);
-        assert_eq!(rf.ellipsoid.unit.as_ref().unwrap().keyword, UnitKeyword::LengthUnit);
+        assert_eq!(
+            rf.ellipsoid.unit.as_ref().unwrap().keyword,
+            UnitKeyword::LengthUnit
+        );
         assert_eq!(
             rf.anchor.as_deref(),
             Some("Tananarive observatory:21.0191667gS, 50.23849537gE of Paris")
