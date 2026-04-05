@@ -1,7 +1,5 @@
 use super::*;
-use crate::crs::{
-    AuthorityId, BaseGeodeticCrsKeyword, CsType, Datum, DatumKeyword, RangeMeaning, UnitKeyword,
-};
+use crate::crs::{AuthorityId, BaseGeodeticCrsKeyword, CsType, Datum, RangeMeaning, UnitKeyword};
 
 #[test]
 fn parse_static_geogcrs() {
@@ -24,7 +22,7 @@ fn parse_static_geogcrs() {
     let Datum::ReferenceFrame(ref rf) = base.datum else {
         panic!("expected ReferenceFrame");
     };
-    assert_eq!(rf.keyword, DatumKeyword::Datum);
+
     assert_eq!(rf.name, "World Geodetic System 1984");
     assert_eq!(rf.ellipsoid.name, "WGS 84");
     assert_eq!(rf.ellipsoid.semi_major_axis, 6378137.0);
@@ -307,7 +305,7 @@ fn parse_datum_with_anchor() {
     let Datum::ReferenceFrame(ref rf) = result.base_geodetic_crs.datum else {
         panic!("expected ReferenceFrame");
     };
-    assert_eq!(rf.keyword, DatumKeyword::GeodeticDatum);
+
     assert_eq!(rf.name, "Tananarive 1925");
     assert_eq!(rf.ellipsoid.name, "International 1924");
     assert_eq!(rf.ellipsoid.semi_major_axis, 6378388.0);
@@ -363,7 +361,7 @@ fn parse_datum_trf_keyword() {
     let Datum::ReferenceFrame(ref rf) = result.base_geodetic_crs.datum else {
         panic!("expected ReferenceFrame");
     };
-    assert_eq!(rf.keyword, DatumKeyword::Trf);
+
     let pm = rf.prime_meridian.as_ref().unwrap();
     assert_eq!(pm.name, "Greenwich");
     assert_eq!(pm.irm_longitude, 0.0);
@@ -690,7 +688,7 @@ fn parse_geogcrs_static() {
     let Datum::ReferenceFrame(ref rf) = result.datum else {
         panic!("expected ReferenceFrame");
     };
-    assert_eq!(rf.keyword, DatumKeyword::Datum);
+
     assert_eq!(rf.name, "World Geodetic System 1984");
     assert_eq!(rf.ellipsoid.semi_major_axis, 6378137.0);
     assert!(rf.prime_meridian.is_none());
@@ -744,10 +742,7 @@ fn parse_geogcrs_dynamic() {
     assert_eq!(result.name, "ITRF2014");
     let d = result.dynamic.as_ref().unwrap();
     assert_eq!(d.frame_reference_epoch, 2010.0);
-    let Datum::ReferenceFrame(ref rf) = result.datum else {
-        panic!("expected ReferenceFrame");
-    };
-    assert_eq!(rf.keyword, DatumKeyword::Trf);
+    assert!(matches!(result.datum, Datum::ReferenceFrame(_)));
     assert_eq!(result.coordinate_system.dimension, 3);
 }
 
@@ -812,8 +807,7 @@ fn parse_geographiccrs_keyword() {
             ANGLEUNIT["degree",0.0174532925199433]]"#;
 
     let mut parser = Parser::new(wkt);
-    let result = parser.parse_geog_crs().unwrap();
-    assert_eq!(result.keyword, crate::crs::GeogCrsKeyword::GeographicCrs);
+    let _result = parser.parse_geog_crs().unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -834,7 +828,6 @@ fn parse_geodcrs_cartesian() {
     let mut parser = Parser::new(wkt);
     let result = parser.parse_geod_crs().unwrap();
 
-    assert_eq!(result.keyword, crate::crs::GeodCrsKeyword::GeodCrs);
     assert_eq!(result.name, "WGS 84 (geocentric)");
     let Datum::ReferenceFrame(ref rf) = result.datum else {
         panic!("expected ReferenceFrame");
@@ -858,8 +851,7 @@ fn parse_geodeticcrs_keyword() {
             LENGTHUNIT["metre",1]]"#;
 
     let mut parser = Parser::new(wkt);
-    let result = parser.parse_geod_crs().unwrap();
-    assert_eq!(result.keyword, crate::crs::GeodCrsKeyword::GeodeticCrs);
+    let _result = parser.parse_geod_crs().unwrap();
 }
 
 #[test]
@@ -914,7 +906,6 @@ fn parse_vertcrs_static() {
     let mut parser = Parser::new(wkt);
     let result = parser.parse_vert_crs().unwrap();
 
-    assert_eq!(result.keyword, crate::crs::VertCrsKeyword::VertCrs);
     assert_eq!(result.name, "NAVD88");
     let crate::crs::VertCrsSource::Datum {
         ref dynamic,
@@ -927,10 +918,6 @@ fn parse_vertcrs_static() {
     let crate::crs::VerticalDatum::ReferenceFrame(rf) = datum else {
         panic!("expected ReferenceFrame");
     };
-    assert_eq!(
-        rf.keyword,
-        crate::crs::VerticalReferenceFrameKeyword::VDatum
-    );
     assert_eq!(rf.name, "North American Vertical Datum 1988");
     assert_eq!(result.coordinate_system.cs_type, CsType::Vertical);
     assert_eq!(result.coordinate_system.dimension, 1);
@@ -955,10 +942,10 @@ fn parse_vertcrs_with_geoid_model() {
     let crate::crs::VertCrsSource::Datum { ref datum, .. } = result.source else {
         panic!("expected Datum source");
     };
-    let crate::crs::VerticalDatum::ReferenceFrame(rf) = datum else {
-        panic!("expected ReferenceFrame");
-    };
-    assert_eq!(rf.keyword, crate::crs::VerticalReferenceFrameKeyword::Vrf);
+    assert!(matches!(
+        datum,
+        crate::crs::VerticalDatum::ReferenceFrame(_)
+    ));
 }
 
 #[test]
@@ -998,10 +985,6 @@ fn parse_vertcrs_with_anchor() {
     let crate::crs::VerticalDatum::ReferenceFrame(rf) = datum else {
         panic!("expected ReferenceFrame");
     };
-    assert_eq!(
-        rf.keyword,
-        crate::crs::VerticalReferenceFrameKeyword::VerticalDatum
-    );
     assert_eq!(rf.anchor.as_deref(), Some("Mean Sea Level 1915 to 1921."));
 }
 

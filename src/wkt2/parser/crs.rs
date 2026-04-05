@@ -1,8 +1,7 @@
 use crate::crs::{
     BaseGeodeticCrs, BaseGeodeticCrsKeyword, BaseVertCrs, CompoundCrs, CoordinateSystem, Crs,
-    Datum, GeodCrs, GeodCrsKeyword, GeogCrs, GeogCrsKeyword, GeoidModel, MapProjection,
-    ProjectedCrs, SingleCrs, VertCrs, VertCrsKeyword, VertCrsSource, VerticalDatum,
-    VerticalReferenceFrame, VerticalReferenceFrameKeyword,
+    Datum, GeodCrs, GeogCrs, GeoidModel, MapProjection, ProjectedCrs, SingleCrs, VertCrs,
+    VertCrsSource, VerticalDatum, VerticalReferenceFrame,
 };
 use crate::error::ParseError;
 
@@ -130,15 +129,14 @@ impl<'a> Parser<'a> {
     pub fn parse_geog_crs(&mut self) -> Result<GeogCrs, ParseError> {
         self.skip_whitespace();
         let keyword_str = self.parse_keyword()?;
-        let keyword = match keyword_str.as_str() {
-            "GEOGCRS" => GeogCrsKeyword::GeogCrs,
-            "GEOGRAPHICCRS" => GeogCrsKeyword::GeographicCrs,
+        match keyword_str.as_str() {
+            "GEOGCRS" | "GEOGRAPHICCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
                     pos: self.pos - keyword_str.len(),
                 });
             }
-        };
+        }
 
         self.skip_whitespace();
         self.expect_char('[')?;
@@ -232,7 +230,6 @@ impl<'a> Parser<'a> {
         self.expect_char(']')?;
 
         Ok(GeogCrs {
-            keyword,
             name,
             dynamic,
             datum,
@@ -246,15 +243,14 @@ impl<'a> Parser<'a> {
     pub fn parse_geod_crs(&mut self) -> Result<GeodCrs, ParseError> {
         self.skip_whitespace();
         let keyword_str = self.parse_keyword()?;
-        let keyword = match keyword_str.as_str() {
-            "GEODCRS" => GeodCrsKeyword::GeodCrs,
-            "GEODETICCRS" => GeodCrsKeyword::GeodeticCrs,
+        match keyword_str.as_str() {
+            "GEODCRS" | "GEODETICCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
                     pos: self.pos - keyword_str.len(),
                 });
             }
-        };
+        }
 
         self.skip_whitespace();
         self.expect_char('[')?;
@@ -348,7 +344,6 @@ impl<'a> Parser<'a> {
         self.expect_char(']')?;
 
         Ok(GeodCrs {
-            keyword,
             name,
             dynamic,
             datum,
@@ -362,15 +357,14 @@ impl<'a> Parser<'a> {
     pub fn parse_vert_crs(&mut self) -> Result<VertCrs, ParseError> {
         self.skip_whitespace();
         let keyword_str = self.parse_keyword()?;
-        let keyword = match keyword_str.as_str() {
-            "VERTCRS" => VertCrsKeyword::VertCrs,
-            "VERTICALCRS" => VertCrsKeyword::VerticalCrs,
+        match keyword_str.as_str() {
+            "VERTCRS" | "VERTICALCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
                     pos: self.pos - keyword_str.len(),
                 });
             }
-        };
+        }
 
         self.skip_whitespace();
         self.expect_char('[')?;
@@ -466,7 +460,6 @@ impl<'a> Parser<'a> {
         self.expect_char(']')?;
 
         Ok(VertCrs {
-            keyword,
             name,
             source,
             coordinate_system,
@@ -665,7 +658,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_vertical_reference_frame(
         &mut self,
     ) -> Result<VerticalReferenceFrame, ParseError> {
-        let (kw_str, (name, anchor, anchor_epoch, identifiers)) =
+        let (_, (name, anchor, anchor_epoch, identifiers)) =
             self.bracketed(&["VDATUM", "VRF", "VERTICALDATUM"], |p| {
                 let name = p.parse_quoted_string()?;
 
@@ -695,15 +688,7 @@ impl<'a> Parser<'a> {
                 Ok((name, anchor, anchor_epoch, identifiers))
             })?;
 
-        let keyword = match kw_str.as_str() {
-            "VDATUM" => VerticalReferenceFrameKeyword::VDatum,
-            "VRF" => VerticalReferenceFrameKeyword::Vrf,
-            "VERTICALDATUM" => VerticalReferenceFrameKeyword::VerticalDatum,
-            _ => unreachable!(),
-        };
-
         Ok(VerticalReferenceFrame {
-            keyword,
             name,
             anchor,
             anchor_epoch,

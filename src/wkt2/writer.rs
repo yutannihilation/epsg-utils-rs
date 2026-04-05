@@ -40,18 +40,9 @@ impl Display for Crs {
     }
 }
 
-impl Display for GeogCrsKeyword {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            GeogCrsKeyword::GeogCrs => "GEOGCRS",
-            GeogCrsKeyword::GeographicCrs => "GEOGRAPHICCRS",
-        })
-    }
-}
-
 impl Display for GeogCrs {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[", self.keyword)?;
+        f.write_str("GEOGCRS[")?;
         write_quoted(f, &self.name)?;
 
         if let Some(ref dynamic) = self.dynamic {
@@ -82,21 +73,12 @@ impl Display for GeogCrs {
             f.write_char(']')?;
         }
         f.write_char(']')
-    }
-}
-
-impl Display for GeodCrsKeyword {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            GeodCrsKeyword::GeodCrs => "GEODCRS",
-            GeodCrsKeyword::GeodeticCrs => "GEODETICCRS",
-        })
     }
 }
 
 impl Display for GeodCrs {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[", self.keyword)?;
+        f.write_str("GEODCRS[")?;
         write_quoted(f, &self.name)?;
 
         if let Some(ref dynamic) = self.dynamic {
@@ -130,18 +112,9 @@ impl Display for GeodCrs {
     }
 }
 
-impl Display for VertCrsKeyword {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            VertCrsKeyword::VertCrs => "VERTCRS",
-            VertCrsKeyword::VerticalCrs => "VERTICALCRS",
-        })
-    }
-}
-
 impl Display for VertCrs {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[", self.keyword)?;
+        f.write_str("VERTCRS[")?;
         write_quoted(f, &self.name)?;
 
         match &self.source {
@@ -200,19 +173,9 @@ impl Display for BaseVertCrs {
     }
 }
 
-impl Display for VerticalReferenceFrameKeyword {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            VerticalReferenceFrameKeyword::VDatum => "VDATUM",
-            VerticalReferenceFrameKeyword::Vrf => "VRF",
-            VerticalReferenceFrameKeyword::VerticalDatum => "VERTICALDATUM",
-        })
-    }
-}
-
 impl Display for VerticalReferenceFrame {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[", self.keyword)?;
+        f.write_str("VDATUM[")?;
         write_quoted(f, &self.name)?;
         if let Some(ref anchor) = self.anchor {
             f.write_str(",ANCHOR[")?;
@@ -356,19 +319,9 @@ impl Display for DeformationModel {
 // Datum
 // ---------------------------------------------------------------------------
 
-impl Display for DatumKeyword {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            DatumKeyword::Datum => "DATUM",
-            DatumKeyword::Trf => "TRF",
-            DatumKeyword::GeodeticDatum => "GEODETICDATUM",
-        })
-    }
-}
-
 impl Display for GeodeticReferenceFrame {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[", self.keyword)?;
+        f.write_str("DATUM[")?;
         write_quoted(f, &self.name)?;
         write!(f, ",{}", self.ellipsoid)?;
         if let Some(ref anchor) = self.anchor {

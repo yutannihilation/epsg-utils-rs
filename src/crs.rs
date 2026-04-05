@@ -35,15 +35,6 @@ impl Crs {
     }
 }
 
-/// The keyword used for a geographic CRS.
-#[derive(Debug, Clone, PartialEq)]
-pub enum GeogCrsKeyword {
-    /// `GEOGCRS` -- the preferred keyword.
-    GeogCrs,
-    /// `GEOGRAPHICCRS` -- the long form.
-    GeographicCrs,
-}
-
 /// A geographic coordinate reference system (GEOGCRS).
 ///
 /// A geographic CRS uses an ellipsoidal coordinate system with latitude and longitude.
@@ -51,8 +42,6 @@ pub enum GeogCrsKeyword {
 /// WKT2 keywords: `GEOGCRS` (preferred), `GEOGRAPHICCRS`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GeogCrs {
-    /// Which keyword was used in the WKT.
-    pub keyword: GeogCrsKeyword,
     /// The name of the geographic CRS (e.g. "WGS 84").
     pub name: String,
     /// Present only if the CRS is dynamic (has a time-varying reference frame).
@@ -83,15 +72,6 @@ impl GeogCrs {
     }
 }
 
-/// The keyword used for a geodetic CRS.
-#[derive(Debug, Clone, PartialEq)]
-pub enum GeodCrsKeyword {
-    /// `GEODCRS` -- the preferred keyword.
-    GeodCrs,
-    /// `GEODETICCRS` -- the long form.
-    GeodeticCrs,
-}
-
 /// A geodetic coordinate reference system (GEODCRS).
 ///
 /// A geodetic CRS uses a Cartesian or spherical coordinate system.
@@ -99,8 +79,6 @@ pub enum GeodCrsKeyword {
 /// WKT2 keywords: `GEODCRS` (preferred), `GEODETICCRS`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GeodCrs {
-    /// Which keyword was used in the WKT.
-    pub keyword: GeodCrsKeyword,
     /// The name of the geodetic CRS (e.g. "WGS 84").
     pub name: String,
     /// Present only if the CRS is dynamic (has a time-varying reference frame).
@@ -131,15 +109,6 @@ impl GeodCrs {
     }
 }
 
-/// The keyword used for a vertical CRS.
-#[derive(Debug, Clone, PartialEq)]
-pub enum VertCrsKeyword {
-    /// `VERTCRS` -- the preferred keyword.
-    VertCrs,
-    /// `VERTICALCRS` -- the long form.
-    VerticalCrs,
-}
-
 /// A vertical coordinate reference system (VERTCRS).
 ///
 /// A vertical CRS uses a vertical coordinate system (height or depth).
@@ -149,8 +118,6 @@ pub enum VertCrsKeyword {
 /// WKT2 keywords: `VERTCRS` (preferred), `VERTICALCRS`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct VertCrs {
-    /// Which keyword was used in the WKT.
-    pub keyword: VertCrsKeyword,
     /// The name of the vertical CRS (e.g. "NAVD88").
     pub name: String,
     /// The source of this CRS: either a datum or a base vertical CRS with a
@@ -226,24 +193,11 @@ pub enum VerticalDatum {
     Ensemble(Box<DatumEnsemble>),
 }
 
-/// The keyword used for a vertical reference frame.
-#[derive(Debug, Clone, PartialEq)]
-pub enum VerticalReferenceFrameKeyword {
-    /// `VDATUM` -- the preferred keyword.
-    VDatum,
-    /// `VRF` -- vertical reference frame.
-    Vrf,
-    /// `VERTICALDATUM` -- the fully spelled-out form.
-    VerticalDatum,
-}
-
 /// A vertical reference frame (vertical datum).
 ///
 /// WKT2 keywords: `VDATUM` (preferred), `VRF`, `VERTICALDATUM`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct VerticalReferenceFrame {
-    /// Which keyword was used in the WKT.
-    pub keyword: VerticalReferenceFrameKeyword,
     /// The datum name (e.g. "North American Vertical Datum 1988").
     pub name: String,
     /// A textual description of the datum anchor point.
@@ -556,25 +510,12 @@ pub enum Datum {
     Ensemble(DatumEnsemble),
 }
 
-/// The keyword used for a geodetic reference frame.
-#[derive(Debug, Clone, PartialEq)]
-pub enum DatumKeyword {
-    /// `DATUM` -- the preferred keyword for backward compatibility.
-    Datum,
-    /// `TRF` -- terrestrial reference frame.
-    Trf,
-    /// `GEODETICDATUM` -- the fully spelled-out form.
-    GeodeticDatum,
-}
-
 /// A geodetic reference frame (datum), defining the relationship between a coordinate
 /// system and the Earth.
 ///
 /// WKT2 keywords: `DATUM` (preferred), `TRF`, `GEODETICDATUM`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GeodeticReferenceFrame {
-    /// Which keyword was used in the WKT.
-    pub keyword: DatumKeyword,
     /// The datum name (e.g. "World Geodetic System 1984").
     pub name: String,
     /// The reference ellipsoid.

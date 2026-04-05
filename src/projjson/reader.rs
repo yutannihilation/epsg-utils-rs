@@ -144,8 +144,6 @@ fn parse_datum_json(v: &Value) -> Result<(Datum, Option<DynamicCrs>), ParseError
 
     let is_dynamic = type_str == "DynamicGeodeticReferenceFrame";
 
-    let keyword = DatumKeyword::Datum; // PROJJSON doesn't distinguish DATUM/TRF/GEODETICDATUM
-
     let name = get_str(v, "name")?.to_string();
 
     let ellipsoid_v = v
@@ -164,7 +162,6 @@ fn parse_datum_json(v: &Value) -> Result<(Datum, Option<DynamicCrs>), ParseError
     let identifiers = parse_ids(v)?;
 
     let rf = GeodeticReferenceFrame {
-        keyword,
         name,
         ellipsoid,
         anchor,

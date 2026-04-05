@@ -1,6 +1,6 @@
 use crate::crs::{
-    DatumEnsemble, DatumKeyword, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember,
-    GeodeticReferenceFrame, PrimeMeridian,
+    DatumEnsemble, DeformationModel, DynamicCrs, Ellipsoid, EnsembleMember, GeodeticReferenceFrame,
+    PrimeMeridian,
 };
 use crate::error::ParseError;
 
@@ -10,7 +10,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_geodetic_reference_frame(
         &mut self,
     ) -> Result<GeodeticReferenceFrame, ParseError> {
-        let (kw_str, (name, ellipsoid, anchor, anchor_epoch, identifiers)) =
+        let (_, (name, ellipsoid, anchor, anchor_epoch, identifiers)) =
             self.bracketed(&["DATUM", "TRF", "GEODETICDATUM"], |p| {
                 let name = p.parse_quoted_string()?;
                 let ellipsoid = p.comma_then(|p| p.parse_ellipsoid())?;
@@ -41,15 +41,7 @@ impl<'a> Parser<'a> {
                 Ok((name, ellipsoid, anchor, anchor_epoch, identifiers))
             })?;
 
-        let keyword = match kw_str.as_str() {
-            "DATUM" => DatumKeyword::Datum,
-            "TRF" => DatumKeyword::Trf,
-            "GEODETICDATUM" => DatumKeyword::GeodeticDatum,
-            _ => unreachable!(),
-        };
-
         Ok(GeodeticReferenceFrame {
-            keyword,
             name,
             ellipsoid,
             anchor,
