@@ -1,7 +1,11 @@
 epsg-utils
 ==========
 
-This crate provides EPSG definitions as either WKT2 or PROJJSON.
+This crate provides three main capabilities:
+
+1. **EPSG lookup** -- look up the WKT2 or PROJJSON representation of a CRS by its EPSG code.
+2. **Parsing** -- parse OGC WKT2 strings or PROJJSON strings into structured Rust types.
+3. **Conversion** -- convert between WKT2 and PROJJSON.
 
 ## Examples
 
