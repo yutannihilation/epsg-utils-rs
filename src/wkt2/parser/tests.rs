@@ -916,8 +916,15 @@ fn parse_vertcrs_static() {
 
     assert_eq!(result.keyword, crate::crs::VertCrsKeyword::VertCrs);
     assert_eq!(result.name, "NAVD88");
-    assert!(result.dynamic.is_none());
-    let crate::crs::VerticalDatum::ReferenceFrame(ref rf) = result.datum else {
+    let crate::crs::VertCrsSource::Datum {
+        ref dynamic,
+        ref datum,
+    } = result.source
+    else {
+        panic!("expected Datum source");
+    };
+    assert!(dynamic.is_none());
+    let crate::crs::VerticalDatum::ReferenceFrame(rf) = datum else {
         panic!("expected ReferenceFrame");
     };
     assert_eq!(
@@ -945,7 +952,10 @@ fn parse_vertcrs_with_geoid_model() {
     assert_eq!(result.geoid_models.len(), 1);
     assert_eq!(result.geoid_models[0].name, "CGG2013");
     assert_eq!(result.geoid_models[0].identifiers.len(), 1);
-    let crate::crs::VerticalDatum::ReferenceFrame(ref rf) = result.datum else {
+    let crate::crs::VertCrsSource::Datum { ref datum, .. } = result.source else {
+        panic!("expected Datum source");
+    };
+    let crate::crs::VerticalDatum::ReferenceFrame(rf) = datum else {
         panic!("expected ReferenceFrame");
     };
     assert_eq!(rf.keyword, crate::crs::VerticalReferenceFrameKeyword::Vrf);
@@ -963,7 +973,10 @@ fn parse_vertcrs_dynamic() {
     let mut parser = Parser::new(wkt);
     let result = parser.parse_vert_crs().unwrap();
 
-    let d = result.dynamic.as_ref().unwrap();
+    let crate::crs::VertCrsSource::Datum { ref dynamic, .. } = result.source else {
+        panic!("expected Datum source");
+    };
+    let d = dynamic.as_ref().unwrap();
     assert_eq!(d.frame_reference_epoch, 2000.0);
     assert_eq!(d.deformation_model.as_ref().unwrap().name, "NKG2016LU");
 }
@@ -979,7 +992,10 @@ fn parse_vertcrs_with_anchor() {
     let mut parser = Parser::new(wkt);
     let result = parser.parse_vert_crs().unwrap();
 
-    let crate::crs::VerticalDatum::ReferenceFrame(ref rf) = result.datum else {
+    let crate::crs::VertCrsSource::Datum { ref datum, .. } = result.source else {
+        panic!("expected Datum source");
+    };
+    let crate::crs::VerticalDatum::ReferenceFrame(rf) = datum else {
         panic!("expected ReferenceFrame");
     };
     assert_eq!(
@@ -1000,6 +1016,36 @@ fn parse_vertcrs_via_parse_crs() {
     let mut parser = Parser::new(wkt);
     let result = parser.parse_crs().unwrap();
     assert!(matches!(result, crate::crs::Crs::VertCrs(_)));
+}
+
+#[test]
+fn parse_derived_vertcrs() {
+    let wkt = r#"VERTCRS["Cascais depth",BASEVERTCRS["Cascais height",VDATUM["Cascais",ID["EPSG",5178]],ID["EPSG",5780]],DERIVINGCONVERSION["Height <> Depth Conversion",METHOD["Height Depth Reversal",ID["EPSG",1068]],ID["EPSG",7812]],CS[vertical,1,ID["EPSG",6498]],AXIS["Depth (D)",down],LENGTHUNIT["metre",1,ID["EPSG",9001]],ID["EPSG",10364]]"#;
+
+    let mut parser = Parser::new(wkt);
+    let result = parser.parse_vert_crs().unwrap();
+
+    assert_eq!(result.name, "Cascais depth");
+    let crate::crs::VertCrsSource::Derived {
+        ref base_vert_crs,
+        ref deriving_conversion,
+    } = result.source
+    else {
+        panic!("expected Derived source");
+    };
+    assert_eq!(base_vert_crs.name, "Cascais height");
+    assert_eq!(base_vert_crs.identifiers.len(), 1);
+    let crate::crs::VerticalDatum::ReferenceFrame(rf) = &base_vert_crs.datum else {
+        panic!("expected ReferenceFrame");
+    };
+    assert_eq!(rf.name, "Cascais");
+
+    assert_eq!(deriving_conversion.name, "Height <> Depth Conversion");
+    assert_eq!(deriving_conversion.method.name, "Height Depth Reversal");
+    assert!(deriving_conversion.parameters.is_empty());
+    assert_eq!(deriving_conversion.identifiers.len(), 1);
+
+    assert_eq!(result.to_epsg(), Some(10364));
 }
 
 // ---------------------------------------------------------------------------

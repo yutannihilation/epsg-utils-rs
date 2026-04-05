@@ -144,13 +144,28 @@ impl Display for VertCrs {
         write!(f, "{}[", self.keyword)?;
         write_quoted(f, &self.name)?;
 
-        if let Some(ref dynamic) = self.dynamic {
-            write!(f, ",{dynamic}")?;
-        }
-
-        match &self.datum {
-            VerticalDatum::ReferenceFrame(rf) => write!(f, ",{rf}")?,
-            VerticalDatum::Ensemble(ens) => write!(f, ",{ens}")?,
+        match &self.source {
+            VertCrsSource::Datum { dynamic, datum } => {
+                if let Some(dynamic) = dynamic {
+                    write!(f, ",{dynamic}")?;
+                }
+                match datum {
+                    VerticalDatum::ReferenceFrame(rf) => write!(f, ",{rf}")?,
+                    VerticalDatum::Ensemble(ens) => write!(f, ",{ens}")?,
+                }
+            }
+            VertCrsSource::Derived {
+                base_vert_crs,
+                deriving_conversion,
+            } => {
+                write!(f, ",{base_vert_crs}")?;
+                f.write_str(",DERIVINGCONVERSION[")?;
+                write_quoted(f, &deriving_conversion.name)?;
+                write!(f, ",{}", deriving_conversion.method)?;
+                write_comma_items(f, &deriving_conversion.parameters)?;
+                write_comma_items(f, &deriving_conversion.identifiers)?;
+                f.write_char(']')?;
+            }
         }
 
         write!(f, ",{}", self.coordinate_system)?;
@@ -162,6 +177,25 @@ impl Display for VertCrs {
             write_quoted(f, remark)?;
             f.write_char(']')?;
         }
+        f.write_char(']')
+    }
+}
+
+impl Display for BaseVertCrs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("BASEVERTCRS[")?;
+        write_quoted(f, &self.name)?;
+
+        if let Some(ref dynamic) = self.dynamic {
+            write!(f, ",{dynamic}")?;
+        }
+
+        match &self.datum {
+            VerticalDatum::ReferenceFrame(rf) => write!(f, ",{rf}")?,
+            VerticalDatum::Ensemble(ens) => write!(f, ",{ens}")?,
+        }
+
+        write_comma_items(f, &self.identifiers)?;
         f.write_char(']')
     }
 }

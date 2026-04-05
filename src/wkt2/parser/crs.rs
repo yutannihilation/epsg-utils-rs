@@ -1,7 +1,8 @@
 use crate::crs::{
-    BaseGeodeticCrs, BaseGeodeticCrsKeyword, CompoundCrs, CoordinateSystem, Crs, Datum, GeodCrs,
-    GeodCrsKeyword, GeogCrs, GeogCrsKeyword, GeoidModel, ProjectedCrs, SingleCrs, VertCrs,
-    VertCrsKeyword, VerticalDatum, VerticalReferenceFrame, VerticalReferenceFrameKeyword,
+    BaseGeodeticCrs, BaseGeodeticCrsKeyword, BaseVertCrs, CompoundCrs, CoordinateSystem, Crs,
+    Datum, GeodCrs, GeodCrsKeyword, GeogCrs, GeogCrsKeyword, GeoidModel, MapProjection,
+    ProjectedCrs, SingleCrs, VertCrs, VertCrsKeyword, VertCrsSource, VerticalDatum,
+    VerticalReferenceFrame, VerticalReferenceFrameKeyword,
 };
 use crate::error::ParseError;
 
@@ -377,24 +378,35 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         let name = self.parse_quoted_string()?;
 
-        // DYNAMIC or VDATUM/ENSEMBLE
+        // BASEVERTCRS (derived) or DYNAMIC/VDATUM/ENSEMBLE (standalone)
         self.skip_whitespace();
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
-            let d = self.parse_dynamic_crs()?;
-            self.skip_whitespace();
-            self.expect_char(',')?;
-            self.skip_whitespace();
-            Some(d)
+        let source = if self.peek_keyword().as_deref() == Some("BASEVERTCRS") {
+            let base_vert_crs = self.parse_base_vert_crs()?;
+            let deriving_conversion = self.comma_then(|p| p.parse_deriving_conversion())?;
+            VertCrsSource::Derived {
+                base_vert_crs,
+                deriving_conversion,
+            }
         } else {
-            None
-        };
+            let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
+                let d = self.parse_dynamic_crs()?;
+                self.skip_whitespace();
+                self.expect_char(',')?;
+                self.skip_whitespace();
+                Some(d)
+            } else {
+                None
+            };
 
-        let datum = match self.peek_keyword().as_deref() {
-            Some("ENSEMBLE") => VerticalDatum::Ensemble(Box::new(self.parse_datum_ensemble()?)),
-            _ => VerticalDatum::ReferenceFrame(self.parse_vertical_reference_frame()?),
+            let datum = match self.peek_keyword().as_deref() {
+                Some("ENSEMBLE") => VerticalDatum::Ensemble(Box::new(self.parse_datum_ensemble()?)),
+                _ => VerticalDatum::ReferenceFrame(self.parse_vertical_reference_frame()?),
+            };
+
+            VertCrsSource::Datum { dynamic, datum }
         };
 
         // Coordinate system
@@ -456,14 +468,81 @@ impl<'a> Parser<'a> {
         Ok(VertCrs {
             keyword,
             name,
-            dynamic,
-            datum,
+            source,
             coordinate_system,
             geoid_models,
             usages,
             identifiers,
             remark,
         })
+    }
+
+    fn parse_base_vert_crs(&mut self) -> Result<BaseVertCrs, ParseError> {
+        self.bracketed(&["BASEVERTCRS"], |p| {
+            let name = p.parse_quoted_string()?;
+
+            p.skip_whitespace();
+            p.expect_char(',')?;
+            p.skip_whitespace();
+
+            let dynamic = if p.peek_keyword().as_deref() == Some("DYNAMIC") {
+                let d = p.parse_dynamic_crs()?;
+                p.skip_whitespace();
+                p.expect_char(',')?;
+                p.skip_whitespace();
+                Some(d)
+            } else {
+                None
+            };
+
+            let datum = match p.peek_keyword().as_deref() {
+                Some("ENSEMBLE") => VerticalDatum::Ensemble(Box::new(p.parse_datum_ensemble()?)),
+                _ => VerticalDatum::ReferenceFrame(p.parse_vertical_reference_frame()?),
+            };
+
+            let identifiers = p.trailing_identifiers()?;
+
+            Ok(BaseVertCrs {
+                name,
+                dynamic,
+                datum,
+                identifiers,
+            })
+        })
+        .map(|(_, base)| base)
+    }
+
+    fn parse_deriving_conversion(&mut self) -> Result<MapProjection, ParseError> {
+        self.bracketed(&["DERIVINGCONVERSION"], |p| {
+            let name = p.parse_quoted_string()?;
+            let method = p.comma_then(|p| p.parse_map_projection_method())?;
+
+            let mut parameters = Vec::new();
+            let mut identifiers = Vec::new();
+
+            p.trailing_items(|p, kw| match kw {
+                "PARAMETER" => {
+                    parameters.push(p.parse_map_projection_parameter()?);
+                    Ok(())
+                }
+                "ID" => {
+                    identifiers.push(p.parse_identifier_node()?);
+                    Ok(())
+                }
+                _ => {
+                    p.parse_bracketed_node()?;
+                    Ok(())
+                }
+            })?;
+
+            Ok(MapProjection {
+                name,
+                method,
+                parameters,
+                identifiers,
+            })
+        })
+        .map(|(_, mp)| mp)
     }
 
     pub fn parse_compound_crs(&mut self) -> Result<CompoundCrs, ParseError> {

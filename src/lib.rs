@@ -8,13 +8,13 @@ mod wkt2;
 mod wkt2_definitions;
 
 pub use crs::{
-    AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, CompoundCrs,
+    AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, BaseVertCrs, CompoundCrs,
     CoordinateSystem, Crs, CsType, Datum, DatumEnsemble, DatumKeyword, DeformationModel,
     DynamicCrs, Ellipsoid, EnsembleMember, GeodCrs, GeodCrsKeyword, GeodeticReferenceFrame,
     GeogCrs, GeogCrsKeyword, GeoidModel, Identifier, MapProjection, MapProjectionMethod,
     MapProjectionParameter, Meridian, PrimeMeridian, ProjectedCrs, RangeMeaning, SingleCrs,
-    TemporalExtent, Unit, UnitKeyword, Usage, VertCrs, VertCrsKeyword, VerticalDatum,
-    VerticalExtent, VerticalReferenceFrame, VerticalReferenceFrameKeyword,
+    TemporalExtent, Unit, UnitKeyword, Usage, VertCrs, VertCrsKeyword, VertCrsSource,
+    VerticalDatum, VerticalExtent, VerticalReferenceFrame, VerticalReferenceFrameKeyword,
 };
 pub use error::ParseError;
 

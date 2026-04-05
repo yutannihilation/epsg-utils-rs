@@ -143,6 +143,8 @@ pub enum VertCrsKeyword {
 /// A vertical coordinate reference system (VERTCRS).
 ///
 /// A vertical CRS uses a vertical coordinate system (height or depth).
+/// It may be a standalone CRS (with a datum) or a derived CRS (with a base
+/// vertical CRS and a deriving conversion).
 ///
 /// WKT2 keywords: `VERTCRS` (preferred), `VERTICALCRS`.
 #[derive(Debug, Clone, PartialEq)]
@@ -151,10 +153,9 @@ pub struct VertCrs {
     pub keyword: VertCrsKeyword,
     /// The name of the vertical CRS (e.g. "NAVD88").
     pub name: String,
-    /// Present only if the CRS is dynamic (has a time-varying reference frame).
-    pub dynamic: Option<DynamicCrs>,
-    /// The datum: either a vertical reference frame or a datum ensemble.
-    pub datum: VerticalDatum,
+    /// The source of this CRS: either a datum or a base vertical CRS with a
+    /// deriving conversion.
+    pub source: VertCrsSource,
     /// The coordinate system describing axes, their directions, and units.
     pub coordinate_system: CoordinateSystem,
     /// Zero or more geoid model references.
@@ -165,6 +166,41 @@ pub struct VertCrs {
     pub identifiers: Vec<Identifier>,
     /// An optional free-text remark about this CRS.
     pub remark: Option<String>,
+}
+
+/// Whether a vertical CRS is standalone (datum-based) or derived from a base
+/// vertical CRS.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VertCrsSource {
+    /// A standalone vertical CRS with a datum.
+    Datum {
+        /// Present only if the CRS is dynamic.
+        dynamic: Option<DynamicCrs>,
+        /// The datum: either a vertical reference frame or a datum ensemble.
+        datum: VerticalDatum,
+    },
+    /// A derived vertical CRS with a base CRS and a deriving conversion.
+    Derived {
+        /// The base vertical CRS from which this CRS is derived.
+        base_vert_crs: BaseVertCrs,
+        /// The conversion applied to the base CRS.
+        deriving_conversion: MapProjection,
+    },
+}
+
+/// The base vertical CRS of a derived vertical CRS.
+///
+/// WKT2 keyword: `BASEVERTCRS`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BaseVertCrs {
+    /// The name of the base CRS.
+    pub name: String,
+    /// Present only if the base CRS is dynamic.
+    pub dynamic: Option<DynamicCrs>,
+    /// The datum: either a vertical reference frame or a datum ensemble.
+    pub datum: VerticalDatum,
+    /// Identifiers for this base CRS.
+    pub identifiers: Vec<Identifier>,
 }
 
 impl VertCrs {

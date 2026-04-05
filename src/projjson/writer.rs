@@ -138,28 +138,39 @@ impl VertCrs {
     pub fn to_projjson(&self) -> Value {
         let mut obj = Map::new();
         insert_schema(&mut obj);
-        obj.insert("type".into(), json!("VerticalCRS"));
-        obj.insert("name".into(), json!(self.name));
 
-        match &self.datum {
-            VerticalDatum::ReferenceFrame(rf) => {
-                obj.insert(
-                    "datum".into(),
-                    vertical_datum_to_json(rf, self.dynamic.as_ref()),
-                );
-            }
-            VerticalDatum::Ensemble(ens) => {
-                obj.insert("datum_ensemble".into(), ensemble_to_json(ens));
-            }
-        }
+        match &self.source {
+            VertCrsSource::Datum { dynamic, datum } => {
+                obj.insert("type".into(), json!("VerticalCRS"));
+                obj.insert("name".into(), json!(self.name));
 
-        if let Some(ref dynamic) = self.dynamic
-            && let Some(ref model) = dynamic.deformation_model
-        {
-            let mut m = Map::new();
-            m.insert("name".into(), json!(model.name));
-            insert_ids(&mut m, &model.identifiers);
-            obj.insert("deformation_models".into(), json!([Value::Object(m)]));
+                match datum {
+                    VerticalDatum::ReferenceFrame(rf) => {
+                        obj.insert("datum".into(), vertical_datum_to_json(rf, dynamic.as_ref()));
+                    }
+                    VerticalDatum::Ensemble(ens) => {
+                        obj.insert("datum_ensemble".into(), ensemble_to_json(ens));
+                    }
+                }
+
+                if let Some(dynamic) = dynamic
+                    && let Some(ref model) = dynamic.deformation_model
+                {
+                    let mut m = Map::new();
+                    m.insert("name".into(), json!(model.name));
+                    insert_ids(&mut m, &model.identifiers);
+                    obj.insert("deformation_models".into(), json!([Value::Object(m)]));
+                }
+            }
+            VertCrsSource::Derived {
+                base_vert_crs,
+                deriving_conversion,
+            } => {
+                obj.insert("type".into(), json!("DerivedVerticalCRS"));
+                obj.insert("name".into(), json!(self.name));
+                obj.insert("base_crs".into(), base_vert_crs_to_json(base_vert_crs));
+                obj.insert("conversion".into(), conversion_to_json(deriving_conversion));
+            }
         }
 
         obj.insert(
@@ -265,6 +276,37 @@ fn base_crs_to_json(base: &BaseGeodeticCrs) -> Value {
     // base_crs in a ProjectedCRS typically doesn't have its own coordinate_system
     // in PROJJSON output (it's implied). But if we have ellipsoidal_cs_unit, we could
     // emit one. For now, omit it as PROJ itself does for projected CRS base_crs.
+
+    insert_ids(&mut obj, &base.identifiers);
+
+    Value::Object(obj)
+}
+
+fn base_vert_crs_to_json(base: &BaseVertCrs) -> Value {
+    let mut obj = Map::new();
+    obj.insert("type".into(), json!("VerticalCRS"));
+    obj.insert("name".into(), json!(base.name));
+
+    match &base.datum {
+        VerticalDatum::ReferenceFrame(rf) => {
+            obj.insert(
+                "datum".into(),
+                vertical_datum_to_json(rf, base.dynamic.as_ref()),
+            );
+        }
+        VerticalDatum::Ensemble(ens) => {
+            obj.insert("datum_ensemble".into(), ensemble_to_json(ens));
+        }
+    }
+
+    if let Some(ref dynamic) = base.dynamic
+        && let Some(ref model) = dynamic.deformation_model
+    {
+        let mut m = Map::new();
+        m.insert("name".into(), json!(model.name));
+        insert_ids(&mut m, &model.identifiers);
+        obj.insert("deformation_models".into(), json!([Value::Object(m)]));
+    }
 
     insert_ids(&mut obj, &base.identifiers);
 
