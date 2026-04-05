@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "generate-definitions"]
+members = [".", "generate-definitions", "web/wasm"]
 
 [package]
 name = "epsg-utils"

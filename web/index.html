@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>epsg-utils WASM Demo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <h1>epsg-utils</h1>
+    <p class="subtitle">EPSG lookup and WKT2/PROJJSON conversion, running entirely in the browser via WebAssembly. <a href="https://github.com/yutannihilation/epsg-utils-rs">GitHub</a></p>
+
+    <section>
+      <h2>EPSG Lookup</h2>
+      <div class="input-row">
+        <label for="epsg-code">EPSG Code</label>
+        <input id="epsg-code" type="number" placeholder="e.g. 4326" disabled>
+        <select id="output-format" disabled>
+          <option value="wkt2">WKT2</option>
+          <option value="projjson">PROJJSON</option>
+        </select>
+        <button id="lookup-btn" disabled>Look up</button>
+      </div>
+      <pre id="lookup-output" class="output"></pre>
+    </section>
+
+    <section>
+      <h2>WKT2 to PROJJSON</h2>
+      <textarea id="wkt2-input" rows="10" placeholder="Paste a WKT2 string here..." disabled></textarea>
+      <button id="convert-btn" disabled>Convert</button>
+      <pre id="convert-output" class="output"></pre>
+    </section>
+
+    <p id="status">Loading WASM module...</p>
+  </main>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

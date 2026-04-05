@@ -1,0 +1,123 @@
+:root {
+    --bg: #fafafa;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --accent: #2563eb;
+    --border: #d4d4d8;
+    --code-bg: #f0f0f0;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family:
+        system-ui,
+        -apple-system,
+        sans-serif;
+    font-size: 1.2rem;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+}
+
+main {
+    max-width: 48rem;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+h1 {
+    margin-bottom: 0.25rem;
+    font-size: 3.7rem;
+}
+.subtitle {
+    color: var(--muted);
+    margin-bottom: 2rem;
+}
+
+h2 {
+    margin-bottom: 0.5rem;
+    font-size: 2.4rem;
+}
+
+section {
+    margin-bottom: 5rem;
+    margin-top: 2rem;
+}
+
+.input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+label {
+    font-weight: 600;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+    font-size: 1.1rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fff;
+}
+
+input[type="number"] {
+    width: 10rem;
+}
+
+textarea {
+    width: 100%;
+    font-family: monospace;
+    resize: vertical;
+}
+
+button {
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 0.4rem 1rem;
+    border: none;
+    border-radius: 4px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+button:not(:disabled):hover {
+    opacity: 0.9;
+}
+
+.output {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem;
+    font-family: monospace;
+    font-size: 1.1rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 24rem;
+    overflow: auto;
+    margin-top: 0.5rem;
+}
+
+#status {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 1rem;
+}
