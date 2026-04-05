@@ -73,6 +73,6 @@ this crate were downloaded from <https://epsg.org/download-dataset.html>.
 
 ## Prior work
 
-- [@developmentseed/epsg](https://github.com/developmentseed/deck.gl-raster/tree/main/packages/epsg)
+- [@developmentseed/epsg](https://github.com/developmentseed/deck.gl-raster/tree/main/packages/epsg): This gives me most of the ideas, from the existence of EPSG dataset and including gzip-compressed data.
 - [crs-definitions](https://crates.io/crates/crs-definitions)
 - [epsg](https://crates.io/crates/epsg)
