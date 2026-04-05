@@ -1,4 +1,4 @@
-mod crs;
+pub mod crs;
 mod error;
 mod projjson;
 #[cfg(feature = "projjson-definitions")]
@@ -7,15 +7,7 @@ mod wkt2;
 #[cfg(feature = "wkt2-definitions")]
 mod wkt2_definitions;
 
-pub use crs::{
-    AuthorityId, Axis, BBox, BaseGeodeticCrs, BaseGeodeticCrsKeyword, BaseVertCrs, CompoundCrs,
-    CoordinateSystem, Crs, CsType, Datum, DatumEnsemble, DatumKeyword, DeformationModel,
-    DynamicCrs, Ellipsoid, EnsembleMember, GeodCrs, GeodCrsKeyword, GeodeticReferenceFrame,
-    GeogCrs, GeogCrsKeyword, GeoidModel, Identifier, MapProjection, MapProjectionMethod,
-    MapProjectionParameter, Meridian, PrimeMeridian, ProjectedCrs, RangeMeaning, SingleCrs,
-    TemporalExtent, Unit, UnitKeyword, Usage, VertCrs, VertCrsKeyword, VertCrsSource,
-    VerticalDatum, VerticalExtent, VerticalReferenceFrame, VerticalReferenceFrameKeyword,
-};
+pub use crs::{CompoundCrs, Crs, GeodCrs, GeogCrs, ProjectedCrs, VertCrs};
 pub use error::ParseError;
 
 /// Parse a WKT2 string into a [`Crs`].
