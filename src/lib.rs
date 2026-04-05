@@ -85,6 +85,8 @@
 //! # }
 //! ```
 
+#[cfg(any(feature = "wkt2-definitions", feature = "projjson-definitions"))]
+mod chunked_definitions;
 pub mod crs;
 mod error;
 mod projjson;
