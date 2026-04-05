@@ -84,6 +84,16 @@
 //! let wkt2 = crs.to_wkt2();
 //! # }
 //! ```
+//!
+//! # EPSG Dataset
+//!
+//! The definitions in this crate are based on the EPSG Dataset v12.054, and
+//! cover 99.5% (7365/7396) of the EPSG codes (engineering CRS and derived
+//! projected CRS are not supported).
+//!
+//! The EPSG Dataset is owned by the [International Association of Oil & Gas
+//! Producers (IOGP)](https://www.iogp.org/). The source definitions included
+//! in this crate were downloaded from <https://epsg.org/download-dataset.html>.
 
 #[cfg(any(feature = "wkt2-definitions", feature = "projjson-definitions"))]
 mod chunked_definitions;
