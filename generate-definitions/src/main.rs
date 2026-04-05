@@ -36,12 +36,6 @@ fn main() {
             .unwrap_or_else(|e| panic!("Failed to read {}: {e}", path.display()));
         let wkt = wkt.trim();
 
-        // Only process PROJCRS definitions
-        if !wkt.starts_with("PROJCRS[") {
-            skipped += 1;
-            continue;
-        }
-
         let crs = match epsg_utils::parse_wkt2(wkt) {
             Ok(crs) => crs,
             Err(e) => {
@@ -84,5 +78,5 @@ fn main() {
     write_compressed("src/wkt2_definitions.bin.gz", &wkt_lines);
     write_compressed("src/projjson_definitions.bin.gz", &json_lines);
 
-    println!("{count} PROJCRS entries generated, {skipped} files skipped");
+    println!("{count} CRS entries generated, {skipped} files skipped");
 }
