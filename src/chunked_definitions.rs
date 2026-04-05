@@ -14,10 +14,10 @@
 //! │   u32  compressed_offset  (into data section)       │
 //! │   u32  compressed_len                               │
 //! ├─────────────────────────────────────────────────────┤
-//! │ Entry index (entry_count × 12 bytes, sorted by code)│
+//! │ Entry index (entry_count × 16 bytes, sorted by code)│
 //! │   i32  epsg_code                                    │
-//! │   u16  chunk_id                                     │
-//! │   u16  offset_in_chunk  (byte offset after decomp.) │
+//! │   u32  chunk_id                                     │
+//! │   u32  offset_in_chunk  (byte offset after decomp.) │
 //! │   u32  len              (byte length of the string) │
 //! ├─────────────────────────────────────────────────────┤
 //! │ Data section                                        │
@@ -80,7 +80,7 @@ impl ChunkedStore {
 
         let chunk_table_offset = 8;
         let entry_index_offset = chunk_table_offset + (chunk_count as usize) * 8;
-        let data_section_offset = entry_index_offset + (entry_count as usize) * 12;
+        let data_section_offset = entry_index_offset + (entry_count as usize) * 16;
 
         assert!(
             data.len() >= data_section_offset,
@@ -129,13 +129,18 @@ impl ChunkedStore {
 
     /// Read the `i`-th entry from the entry index.
     fn read_entry(&self, i: usize) -> IndexEntry {
-        let base = self.entry_index_offset + i * 12;
+        let base = self.entry_index_offset + i * 16;
         let d = self.data;
         IndexEntry {
             code: i32::from_le_bytes([d[base], d[base + 1], d[base + 2], d[base + 3]]),
-            chunk_id: u16::from_le_bytes([d[base + 4], d[base + 5]]),
-            offset_in_chunk: u16::from_le_bytes([d[base + 6], d[base + 7]]),
-            len: u32::from_le_bytes([d[base + 8], d[base + 9], d[base + 10], d[base + 11]]),
+            chunk_id: u32::from_le_bytes([d[base + 4], d[base + 5], d[base + 6], d[base + 7]]),
+            offset_in_chunk: u32::from_le_bytes([
+                d[base + 8],
+                d[base + 9],
+                d[base + 10],
+                d[base + 11],
+            ]),
+            len: u32::from_le_bytes([d[base + 12], d[base + 13], d[base + 14], d[base + 15]]),
         }
     }
 
@@ -188,7 +193,7 @@ impl ChunkedStore {
 /// A single entry in the binary search index.
 struct IndexEntry {
     code: i32,
-    chunk_id: u16,
-    offset_in_chunk: u16,
+    chunk_id: u32,
+    offset_in_chunk: u32,
     len: u32,
 }

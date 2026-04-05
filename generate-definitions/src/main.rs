@@ -94,8 +94,8 @@ fn main() {
 /// ```text
 /// [header]         8 bytes: u32 chunk_count, u32 entry_count
 /// [chunk table]    chunk_count × 8 bytes: (u32 offset, u32 len) per chunk
-/// [entry index]    entry_count × 12 bytes: (i32 code, u16 chunk_id,
-///                                           u16 offset_in_chunk, u32 len)
+/// [entry index]    entry_count × 16 bytes: (i32 code, u32 chunk_id,
+///                                           u32 offset_in_chunk, u32 len)
 /// [data section]   concatenated gzip streams
 /// ```
 fn write_chunked_bin(path: &str, entries: &[(i32, &str)]) {
@@ -113,8 +113,8 @@ fn write_chunked_bin(path: &str, entries: &[(i32, &str)]) {
     // For each chunk, also record (code, chunk_id, offset_in_chunk, len) per entry.
     struct EntryInfo {
         code: i32,
-        chunk_id: u16,
-        offset_in_chunk: u16,
+        chunk_id: u32,
+        offset_in_chunk: u32,
         len: u32,
     }
     let mut entry_infos: Vec<EntryInfo> = Vec::with_capacity(entries.len());
@@ -128,8 +128,8 @@ fn write_chunked_bin(path: &str, entries: &[(i32, &str)]) {
             blob.push_str(text);
             entry_infos.push(EntryInfo {
                 code,
-                chunk_id: chunk_id as u16,
-                offset_in_chunk: offset_in_chunk as u16,
+                chunk_id: chunk_id as u32,
+                offset_in_chunk: offset_in_chunk as u32,
                 len: text.len() as u32,
             });
         }
@@ -158,7 +158,7 @@ fn write_chunked_bin(path: &str, entries: &[(i32, &str)]) {
         data_offset += ci.compressed.len() as u32;
     }
 
-    // Entry index: (i32 code, u16 chunk_id, u16 offset_in_chunk, u32 len)
+    // Entry index: (i32 code, u32 chunk_id, u32 offset_in_chunk, u32 len)
     for ei in &entry_infos {
         out.extend_from_slice(&ei.code.to_le_bytes());
         out.extend_from_slice(&ei.chunk_id.to_le_bytes());

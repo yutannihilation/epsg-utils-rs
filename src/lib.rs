@@ -174,6 +174,123 @@ mod tests {
         assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
     }
 
+    // -----------------------------------------------------------------------
+    // Lookup tests covering every CRS type and chunk boundaries
+    // -----------------------------------------------------------------------
+
+    /// EPSG:4326 -- GEOGCRS (WGS 84), the most widely used geographic CRS.
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_geogcrs_4326() {
+        let wkt = epsg_to_wkt2(4326).unwrap();
+        let Crs::GeogCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected GeogCrs");
+        };
+        assert_eq!(crs.name, "WGS 84");
+        assert_eq!(crs.to_epsg(), Some(4326));
+    }
+
+    /// EPSG:4978 -- GEODCRS (WGS 84 geocentric).
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_geodcrs_4978() {
+        let wkt = epsg_to_wkt2(4978).unwrap();
+        let Crs::GeodCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected GeodCrs");
+        };
+        assert_eq!(crs.name, "WGS 84");
+        assert_eq!(crs.to_epsg(), Some(4978));
+    }
+
+    /// EPSG:5714 -- VERTCRS (MSL height).
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_vertcrs_5714() {
+        let wkt = epsg_to_wkt2(5714).unwrap();
+        let Crs::VertCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected VertCrs");
+        };
+        assert_eq!(crs.name, "MSL height");
+        assert_eq!(crs.to_epsg(), Some(5714));
+    }
+
+    /// EPSG:10364 -- derived VERTCRS (Cascais depth, uses BASEVERTCRS).
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_derived_vertcrs_10364() {
+        let wkt = epsg_to_wkt2(10364).unwrap();
+        let Crs::VertCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected VertCrs");
+        };
+        assert_eq!(crs.name, "Cascais depth");
+        assert!(matches!(crs.source, crs::VertCrsSource::Derived { .. }));
+    }
+
+    /// EPSG:9518 -- COMPOUNDCRS (WGS 84 + EGM2008 height).
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_compoundcrs_9518() {
+        let wkt = epsg_to_wkt2(9518).unwrap();
+        let Crs::CompoundCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected CompoundCrs");
+        };
+        assert_eq!(crs.name, "WGS 84 + EGM2008 height");
+        assert_eq!(crs.to_epsg(), Some(9518));
+    }
+
+    /// EPSG:32631 -- PROJCRS (WGS 84 / UTM zone 31N).
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_projcrs_32631() {
+        let wkt = epsg_to_wkt2(32631).unwrap();
+        let Crs::ProjectedCrs(crs) = parse_wkt2(wkt).unwrap() else {
+            panic!("expected ProjectedCrs");
+        };
+        assert_eq!(crs.name, "WGS 84 / UTM zone 31N");
+        assert_eq!(crs.to_epsg(), Some(32631));
+    }
+
+    /// EPSG:2000 -- first code in the dataset (boundary test).
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_first_code_2000() {
+        let wkt = epsg_to_wkt2(2000).unwrap();
+        let crs = parse_wkt2(wkt).unwrap();
+        assert_eq!(crs.to_epsg(), Some(2000));
+    }
+
+    /// EPSG:32766 -- last code in the dataset (boundary test).
+    #[test]
+    #[cfg(feature = "wkt2-definitions")]
+    fn lookup_last_code_32766() {
+        let wkt = epsg_to_wkt2(32766).unwrap();
+        let crs = parse_wkt2(wkt).unwrap();
+        assert_eq!(crs.to_epsg(), Some(32766));
+    }
+
+    /// Verify that WKT2 and PROJJSON lookups agree on the CRS name
+    /// (for projected CRSs, since `parse_projjson` currently only supports those).
+    #[test]
+    #[cfg(all(feature = "wkt2-definitions", feature = "projjson-definitions"))]
+    fn wkt2_and_projjson_agree() {
+        for code in [2000, 6678, 32631] {
+            let wkt = epsg_to_wkt2(code).unwrap();
+            let json = epsg_to_projjson(code).unwrap();
+            let wkt_crs = parse_wkt2(wkt).unwrap();
+            let json_crs = parse_projjson(json).unwrap();
+            assert_eq!(
+                wkt_crs.to_epsg(),
+                Some(code),
+                "WKT2 EPSG mismatch for {code}"
+            );
+            assert_eq!(
+                json_crs.to_epsg(),
+                Some(code),
+                "PROJJSON EPSG mismatch for {code}"
+            );
+        }
+    }
+
     #[test]
     #[cfg(feature = "wkt2-definitions")]
     fn epsg_to_wkt2_unknown() {
