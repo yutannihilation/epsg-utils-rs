@@ -28,13 +28,20 @@ let crs = epsg_utils::parse_wkt2(r#"PROJCRS["WGS 84 / UTM zone 31N",
 assert_eq!(crs.to_epsg(), Some(32631));
 ```
 
+### Parse PROJJSON
+
+```rust
+let crs = epsg_utils::parse_projjson(projjson).unwrap();
+assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
+```
+
 ### Convert between WKT2 and PROJJSON
 
 ```rust
 let crs = epsg_utils::parse_wkt2(wkt).unwrap();
 
 // To PROJJSON (serde_json::Value)
-let projjson = crs.to_projjson();
+let projjson_value = crs.to_projjson();
 
 // Back to WKT2
 let wkt2 = crs.to_wkt2();
