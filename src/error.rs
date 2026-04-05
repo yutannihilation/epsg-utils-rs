@@ -42,10 +42,7 @@ impl std::fmt::Display for ParseError {
                 )
             }
             ParseError::UnexpectedKeyword { keyword, pos } => {
-                write!(
-                    f,
-                    "unexpected keyword '{keyword}' at position {pos} (hint: use PROJCRS instead of PROJECTEDCRS)"
-                )
+                write!(f, "unexpected keyword '{keyword}' at position {pos}")
             }
             ParseError::ExpectedKeyword { pos } => {
                 write!(f, "expected keyword at position {pos}")

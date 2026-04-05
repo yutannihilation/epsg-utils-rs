@@ -484,12 +484,10 @@ fn parse_projcrs_with_trailing_nodes() {
 }
 
 #[test]
-fn reject_projectedcrs() {
+fn parse_projectedcrs_keyword() {
     let wkt = r#"PROJECTEDCRS["test", BASEGEOGCRS["x", DATUM["d", ELLIPSOID["e",6378137,298.257]]], CONVERSION["y", METHOD["m"]], CS[Cartesian, 2]]"#;
     let mut parser = Parser::new(wkt);
-    let err = parser.parse_projected_crs().unwrap_err();
-    assert!(matches!(err, ParseError::UnexpectedKeyword { .. }));
-    assert!(err.to_string().contains("PROJECTEDCRS"));
+    let _result = parser.parse_projected_crs().unwrap();
 }
 
 #[test]

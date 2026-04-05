@@ -24,7 +24,9 @@ impl<'a> Parser<'a> {
     fn parse_single_crs(&mut self) -> Result<Crs, ParseError> {
         self.skip_whitespace();
         match self.peek_keyword().as_deref() {
-            Some("PROJCRS") => Ok(Crs::ProjectedCrs(Box::new(self.parse_projected_crs()?))),
+            Some("PROJCRS") | Some("PROJECTEDCRS") => {
+                Ok(Crs::ProjectedCrs(Box::new(self.parse_projected_crs()?)))
+            }
             Some("GEOGCRS") | Some("GEOGRAPHICCRS") => {
                 Ok(Crs::GeogCrs(Box::new(self.parse_geog_crs()?)))
             }
@@ -49,13 +51,7 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         let keyword = self.parse_keyword()?;
         match keyword.as_str() {
-            "PROJCRS" => {}
-            "PROJECTEDCRS" => {
-                return Err(ParseError::UnexpectedKeyword {
-                    keyword,
-                    pos: self.pos - "PROJECTEDCRS".len(),
-                });
-            }
+            "PROJCRS" | "PROJECTEDCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
                     pos: self.pos - keyword.len(),
@@ -568,8 +564,8 @@ impl<'a> Parser<'a> {
 
         self.trailing_items(|p, kw| match kw {
             // Additional component CRSs or trailing metadata
-            "PROJCRS" | "GEOGCRS" | "GEOGRAPHICCRS" | "GEODCRS" | "GEODETICCRS" | "VERTCRS"
-            | "VERTICALCRS" => {
+            "PROJCRS" | "PROJECTEDCRS" | "GEOGCRS" | "GEOGRAPHICCRS" | "GEODCRS"
+            | "GEODETICCRS" | "VERTCRS" | "VERTICALCRS" => {
                 components.push(p.parse_single_crs_component_with_keyword(kw)?);
                 Ok(())
             }
@@ -615,7 +611,7 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         let kw = self.peek_keyword();
         match kw.as_deref() {
-            Some("PROJCRS") => Ok(SingleCrs::ProjectedCrs(Box::new(
+            Some("PROJCRS") | Some("PROJECTEDCRS") => Ok(SingleCrs::ProjectedCrs(Box::new(
                 self.parse_projected_crs()?,
             ))),
             Some("GEOGCRS") | Some("GEOGRAPHICCRS") => {
@@ -642,7 +638,7 @@ impl<'a> Parser<'a> {
         kw: &str,
     ) -> Result<SingleCrs, ParseError> {
         match kw {
-            "PROJCRS" => Ok(SingleCrs::ProjectedCrs(Box::new(
+            "PROJCRS" | "PROJECTEDCRS" => Ok(SingleCrs::ProjectedCrs(Box::new(
                 self.parse_projected_crs()?,
             ))),
             "GEOGCRS" | "GEOGRAPHICCRS" => Ok(SingleCrs::GeogCrs(Box::new(self.parse_geog_crs()?))),
