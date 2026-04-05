@@ -1,6 +1,10 @@
 epsg-utils
 ==========
 
+[![Test](https://github.com/yutannihilation/epsg-utils-rs/actions/workflows/test.yml/badge.svg)](https://github.com/yutannihilation/epsg-utils-rs/actions/workflows/test.yml)
+[![crates.io](https://img.shields.io/crates/v/epsg-utils.svg)](https://crates.io/crates/epsg-utils)
+[![docs.rs](https://docs.rs/epsg-utils/badge.svg)](https://docs.rs/epsg-utils)
+
 This crate provides three main capabilities:
 
 1. **EPSG lookup** -- look up the WKT2 or PROJJSON representation of a CRS by its EPSG code.
