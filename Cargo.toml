@@ -3,7 +3,7 @@ members = [".", "generate-definitions"]
 
 [package]
 name = "epsg-utils"
-version = "0.0.1"
+version = "0.0.0"
 edition = "2024"
 authors = ["Hiroaki Yutani"]
 license = "MIT"
