@@ -1,3 +1,90 @@
+//! Utilities for working with EPSG coordinate reference system definitions.
+//!
+//! This crate provides three main capabilities:
+//!
+//! 1. **EPSG lookup** -- look up the WKT2 or PROJJSON representation of a CRS
+//!    by its EPSG code (via [`epsg_to_wkt2`] and [`epsg_to_projjson`]).
+//! 2. **Parsing** -- parse OGC WKT2 strings ([`parse_wkt2`]) or PROJJSON
+//!    strings ([`parse_projjson`]) into structured Rust types.
+//! 3. **Conversion** -- convert between WKT2 and PROJJSON using
+//!    [`Crs::to_wkt2`] and [`Crs::to_projjson`].
+//!
+//! # Crate structure
+//!
+//! The top-level [`Crs`] enum is the entry point for all parsed CRS data. It
+//! dispatches to one of the concrete CRS types:
+//!
+//! - [`ProjectedCrs`] -- a projected CRS (`PROJCRS`)
+//! - [`GeogCrs`] -- a geographic CRS (`GEOGCRS`)
+//! - [`GeodCrs`] -- a geodetic CRS (`GEODCRS`)
+//! - [`VertCrs`] -- a vertical CRS (`VERTCRS`)
+//! - [`CompoundCrs`] -- a compound CRS (`COMPOUNDCRS`)
+//!
+//! These types and their components (datums, coordinate systems, ellipsoids,
+//! etc.) live in the [`crs`] module and are all publicly accessible.
+//!
+//! # Features
+//!
+//! - **`wkt2-definitions`** (enabled by default) -- embeds compressed WKT2
+//!   strings for all supported EPSG codes, enabling [`epsg_to_wkt2`].
+//! - **`projjson-definitions`** (enabled by default) -- embeds compressed
+//!   PROJJSON strings for all supported EPSG codes, enabling [`epsg_to_projjson`].
+//!
+//! # Examples
+//!
+//! ## Look up an EPSG code
+//!
+//! ```
+//! # #[cfg(feature = "wkt2-definitions")]
+//! # {
+//! let wkt = epsg_utils::epsg_to_wkt2(6678).unwrap();
+//! # }
+//! # #[cfg(feature = "projjson-definitions")]
+//! # {
+//! let projjson = epsg_utils::epsg_to_projjson(6678).unwrap();
+//! # }
+//! ```
+//!
+//! ## Parse WKT2
+//!
+//! ```
+//! let crs = epsg_utils::parse_wkt2(r#"PROJCRS["WGS 84 / UTM zone 31N",
+//!     BASEGEOGCRS["WGS 84", DATUM["World Geodetic System 1984",
+//!         ELLIPSOID["WGS 84", 6378137, 298.257223563]]],
+//!     CONVERSION["UTM zone 31N", METHOD["Transverse Mercator"]],
+//!     CS[Cartesian, 2],
+//!     ID["EPSG", 32631]]"#).unwrap();
+//!
+//! assert_eq!(crs.to_epsg(), Some(32631));
+//! ```
+//!
+//! ## Parse PROJJSON
+//!
+//! ```
+//! # #[cfg(feature = "projjson-definitions")]
+//! # {
+//! let projjson = epsg_utils::epsg_to_projjson(6678).unwrap();
+//! let crs = epsg_utils::parse_projjson(projjson).unwrap();
+//! assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
+//! # }
+//! ```
+//!
+//! ## Convert between WKT2 and PROJJSON
+//!
+//! ```
+//! # #[cfg(feature = "wkt2-definitions")]
+//! # {
+//! # let wkt = epsg_utils::epsg_to_wkt2(6678).unwrap();
+//! let crs = epsg_utils::parse_wkt2(wkt).unwrap();
+//!
+//! // To PROJJSON (serde_json::Value)
+//! let projjson_value = crs.to_projjson();
+//!
+//! // Back to WKT2
+//! let wkt2 = crs.to_wkt2();
+//! # }
+//! ```
+
 pub mod crs;
 mod error;
 mod projjson;
