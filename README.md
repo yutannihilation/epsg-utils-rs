@@ -40,7 +40,7 @@ assert_eq!(crs.to_epsg(), Some(32631));
 
 ```rust
 let crs = epsg_utils::parse_projjson(projjson).unwrap();
-assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
+assert_eq!(crs.name, "JGD2024 / Japan Plane Rectangular CS X");
 ```
 
 ### Convert between WKT2 and PROJJSON
