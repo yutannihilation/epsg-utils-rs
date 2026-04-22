@@ -4,7 +4,7 @@ members = [".", "generate-definitions", "web/wasm"]
 [package]
 name = "epsg-utils"
 description = "Parse/convert EPSG code, WKT2, and PROJJSON"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 authors = ["Hiroaki Yutani"]
 license = "MIT"
