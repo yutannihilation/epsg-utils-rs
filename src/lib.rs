@@ -65,7 +65,7 @@
 //! # {
 //! let projjson = epsg_utils::epsg_to_projjson(6678).unwrap();
 //! let crs = epsg_utils::parse_projjson(projjson).unwrap();
-//! assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
+//! assert_eq!(crs.name, "JGD2024 / Japan Plane Rectangular CS X");
 //! # }
 //! ```
 //!
@@ -172,7 +172,7 @@ mod tests {
         let Crs::ProjectedCrs(crs) = parse_wkt2(wkt).unwrap() else {
             panic!("expected ProjectedCrs");
         };
-        assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
+        assert_eq!(crs.name, "JGD2024 / Japan Plane Rectangular CS X");
     }
 
     #[test]
@@ -181,7 +181,7 @@ mod tests {
         let json = epsg_to_projjson(6678).unwrap();
         assert!(json.contains("\"ProjectedCRS\""));
         let crs = parse_projjson(json).unwrap();
-        assert_eq!(crs.name, "JGD2011 / Japan Plane Rectangular CS X");
+        assert_eq!(crs.name, "JGD2024 / Japan Plane Rectangular CS X");
     }
 
     // -----------------------------------------------------------------------

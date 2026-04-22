@@ -14,7 +14,7 @@ use flate2::write::GzEncoder;
 const CHUNK_SIZE: usize = 64;
 
 fn main() {
-    let wkt_dir = Path::new("data-raw/EPSG-v12_054-WKT");
+    let wkt_dir = Path::new("data-raw/EPSG-v12_055-WKT");
 
     // Collect all EPSG-CRS-*.wkt files
     let mut files: Vec<_> = fs::read_dir(wkt_dir)
