@@ -57,8 +57,8 @@ let wkt2 = crs.to_wkt2();
 
 ## EPSG Dataset
 
-The definitions in this crate is based on the EPSG Dataset v12.054, and covers
-99.5% (7365/7396) of the EPSG codes (engineering CRS and derived projected CRS
+The definitions in this crate is based on the EPSG Dataset v12.055, and covers
+99.6% (7392/7423) of the EPSG codes (engineering CRS and derived projected CRS
 are not supported).
 
 The EPSG Dataset is owned by the [International Association of Oil & Gas
