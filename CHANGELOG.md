@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## [Unreleased] (ReleaseDate)
 
+- Update the EPSG Dataset to v12.057
+
 ## [v0.0.2] (2026-04-22)
 
 - Update the EPSG Dataset to v12.055
