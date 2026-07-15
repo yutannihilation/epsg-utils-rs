@@ -23,7 +23,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -31,15 +31,7 @@ jobs:
 
       - name: Install wasm-pack
         run: |
-          curl -L --proto '=https' --tlsv1.2 -sSf \
-            https://github.com/drager/wasm-pack/releases/download/v0.14.0/wasm-pack-v0.14.0-x86_64-unknown-linux-musl.tar.gz \
-            -o wasm-pack.tar.gz
-          tar -xzf wasm-pack.tar.gz
-          mkdir -p "$HOME/.local/bin"
-          mv wasm-pack-v0.14.0-x86_64-unknown-linux-musl/wasm-pack "$HOME/.local/bin/wasm-pack"
-          chmod +x "$HOME/.local/bin/wasm-pack"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          wasm-pack --version
+          curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build wasm package
         run: wasm-pack build web/wasm --release --target web --out-dir ../pkg --out-name epsg_utils_web
