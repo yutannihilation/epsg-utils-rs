@@ -11,9 +11,31 @@ mod tests;
 use crate::crs::Identifier;
 use crate::error::ParseError;
 
+/// Which keyword character set the parser accepts.
+///
+/// WKT2 keywords are uppercase letters only; WKT1 keywords may also contain
+/// digits and underscores (`VERT_CS`, `COMPD_CS`, `TOWGS84`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Dialect {
+    Wkt2,
+    Wkt1,
+}
+
+impl Dialect {
+    /// Whether `b` may continue a keyword (the first byte must always be an
+    /// uppercase letter, so that numbers are never read as keywords).
+    fn continues_keyword(self, b: u8) -> bool {
+        match self {
+            Dialect::Wkt2 => b.is_ascii_uppercase(),
+            Dialect::Wkt1 => b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_',
+        }
+    }
+}
+
 pub struct Parser<'a> {
     input: &'a str,
     pos: usize,
+    dialect: Dialect,
 }
 
 // ---------------------------------------------------------------------------
@@ -22,7 +44,25 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
-        Self { input, pos: 0 }
+        Self {
+            input,
+            pos: 0,
+            dialect: Dialect::Wkt2,
+        }
+    }
+
+    /// A parser that accepts WKT1 keywords (see [`Dialect`]).
+    pub(crate) fn new_wkt1(input: &'a str) -> Self {
+        Self {
+            input,
+            pos: 0,
+            dialect: Dialect::Wkt1,
+        }
+    }
+
+    /// Current byte offset into the input (for error reporting).
+    pub(crate) fn pos(&self) -> usize {
+        self.pos
     }
 
     pub(crate) fn skip_whitespace(&mut self) {
@@ -36,17 +76,19 @@ impl<'a> Parser<'a> {
     }
 
     /// Peek at the next keyword without advancing the position.
-    pub(crate) fn peek_keyword(&self) -> Option<String> {
-        let mut pos = self.pos;
-        let start = pos;
-        while pos < self.input.len() && self.input.as_bytes()[pos].is_ascii_uppercase() {
+    ///
+    /// A keyword starts with an uppercase letter and continues with the
+    /// bytes the current [`Dialect`] allows.
+    pub(crate) fn peek_keyword(&self) -> Option<&'a str> {
+        let bytes = self.input.as_bytes();
+        if !bytes.get(self.pos)?.is_ascii_uppercase() {
+            return None;
+        }
+        let mut pos = self.pos + 1;
+        while pos < bytes.len() && self.dialect.continues_keyword(bytes[pos]) {
             pos += 1;
         }
-        if pos == start {
-            None
-        } else {
-            Some(self.input[start..pos].to_string())
-        }
+        Some(&self.input[self.pos..pos])
     }
 
     pub(crate) fn expect_char(&mut self, expected: char) -> Result<(), ParseError> {
@@ -64,16 +106,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Consume and return an uppercase keyword.
-    pub(crate) fn parse_keyword(&mut self) -> Result<String, ParseError> {
-        let start = self.pos;
-        while self.pos < self.input.len() && self.input.as_bytes()[self.pos].is_ascii_uppercase() {
-            self.pos += 1;
-        }
-        if self.pos == start {
-            return Err(ParseError::ExpectedKeyword { pos: start });
-        }
-        Ok(self.input[start..self.pos].to_string())
+    /// Consume and return a keyword.
+    pub(crate) fn parse_keyword(&mut self) -> Result<&'a str, ParseError> {
+        let kw = self
+            .peek_keyword()
+            .ok_or(ParseError::ExpectedKeyword { pos: self.pos })?;
+        self.pos += kw.len();
+        Ok(kw)
     }
 
     /// Parse an unquoted identifier (mixed case, alphabetic).
@@ -138,31 +177,44 @@ impl<'a> Parser<'a> {
             .map_err(|_| ParseError::UnexpectedEnd)
     }
 
-    /// Parse a KEYWORD[...] node as a raw string, preserving the original text.
-    pub(crate) fn parse_bracketed_node(&mut self) -> Result<String, ParseError> {
+    /// Consume a `KEYWORD[...]` node without interpreting it, returning the
+    /// raw text so callers can preserve the original spelling.
+    pub(crate) fn skip_node(&mut self) -> Result<&'a str, ParseError> {
         let start = self.pos;
         self.parse_keyword()?;
         self.skip_whitespace();
         self.expect_char('[')?;
+
+        let bytes = self.input.as_bytes();
         let mut depth = 1u32;
-        while self.pos < self.input.len() && depth > 0 {
-            match self.input.as_bytes()[self.pos] {
+        while depth > 0 {
+            if self.pos >= bytes.len() {
+                return Err(ParseError::UnexpectedEnd);
+            }
+            match bytes[self.pos] {
                 b'[' => depth += 1,
                 b']' => depth -= 1,
                 b'"' => {
+                    // Skip the quoted string; an unterminated one must not
+                    // advance `pos` past the end of the input.
                     self.pos += 1;
-                    while self.pos < self.input.len() && self.input.as_bytes()[self.pos] != b'"' {
+                    while self.pos < bytes.len() && bytes[self.pos] != b'"' {
                         self.pos += 1;
+                    }
+                    if self.pos >= bytes.len() {
+                        return Err(ParseError::UnterminatedString { pos: start });
                     }
                 }
                 _ => {}
             }
             self.pos += 1;
         }
-        if depth != 0 {
-            return Err(ParseError::UnexpectedEnd);
-        }
-        Ok(self.input[start..self.pos].to_string())
+        Ok(&self.input[start..self.pos])
+    }
+
+    /// Parse a KEYWORD[...] node as a raw string, preserving the original text.
+    pub(crate) fn parse_bracketed_node(&mut self) -> Result<String, ParseError> {
+        self.skip_node().map(str::to_string)
     }
 
     /// Parse a datetime (unquoted, like 2013-01-01) or quoted text.
@@ -206,9 +258,9 @@ impl<'a> Parser<'a> {
         &mut self,
         keywords: &[&str],
         body: impl FnOnce(&mut Self) -> Result<T, ParseError>,
-    ) -> Result<(String, T), ParseError> {
+    ) -> Result<(&'a str, T), ParseError> {
         let kw = self.parse_keyword()?;
-        if !keywords.contains(&kw.as_str()) {
+        if !keywords.contains(&kw) {
             return Err(ParseError::ExpectedKeyword {
                 pos: self.pos - kw.len(),
             });
@@ -248,7 +300,7 @@ impl<'a> Parser<'a> {
             self.skip_whitespace();
 
             let kw = self.peek_keyword().unwrap_or_default();
-            handler(self, &kw)?;
+            handler(self, kw)?;
         }
         Ok(())
     }

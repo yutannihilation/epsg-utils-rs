@@ -24,7 +24,7 @@ impl<'a> Parser<'a> {
                 Ok((name, conversion_factor, identifiers))
             })?;
 
-        let keyword = match kw_str.as_str() {
+        let keyword = match kw_str {
             "ANGLEUNIT" => UnitKeyword::AngleUnit,
             "LENGTHUNIT" => UnitKeyword::LengthUnit,
             "PARAMETRICUNIT" => UnitKeyword::ParametricUnit,

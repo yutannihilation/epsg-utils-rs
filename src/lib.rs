@@ -4,10 +4,12 @@
 //!
 //! 1. **EPSG lookup** -- look up the WKT2 or PROJJSON representation of a CRS
 //!    by its EPSG code (via [`epsg_to_wkt2`] and [`epsg_to_projjson`]).
-//! 2. **Parsing** -- parse OGC WKT2 strings ([`parse_wkt2`]) or PROJJSON
-//!    strings ([`parse_projjson`]) into structured Rust types.
+//! 2. **Parsing** -- parse OGC WKT2 strings ([`parse_wkt2`]), WKT1 strings in
+//!    the GDAL or ESRI dialect ([`parse_wkt1`], [`parse_wkt1_lossy`]), or
+//!    PROJJSON strings ([`parse_projjson`]) into structured Rust types.
 //! 3. **Conversion** -- convert between WKT2 and PROJJSON using
-//!    [`Crs::to_wkt2`] and [`Crs::to_projjson`].
+//!    [`Crs::to_wkt2`] and [`Crs::to_projjson`]. Parsed WKT1 uses the same
+//!    [`Crs`] types, so WKT1 -> WKT2 / PROJJSON conversion works the same way.
 //!
 //! # Crate structure
 //!
@@ -102,6 +104,7 @@ mod error;
 mod projjson;
 #[cfg(feature = "projjson-definitions")]
 mod projjson_definitions;
+mod wkt1;
 mod wkt2;
 #[cfg(feature = "wkt2-definitions")]
 mod wkt2_definitions;
@@ -112,6 +115,57 @@ pub use error::ParseError;
 /// Parse a WKT2 string into a [`Crs`].
 pub fn parse_wkt2(input: &str) -> Result<Crs, ParseError> {
     wkt2::Parser::new(input).parse_crs()
+}
+
+/// Parse a WKT1 string (GDAL or ESRI dialect) into a [`Crs`].
+///
+/// Both the GDAL dialect (deriving from OGC 01-009, e.g. `gdalsrsinfo`
+/// output) and the ESRI dialect (`.prj` files) are accepted; the dialect is
+/// detected per node.
+///
+/// # Name normalization
+///
+/// Projection method and parameter names are mapped to their EPSG
+/// equivalents. Datum, ellipsoid, and unit names are restored to official
+/// EPSG names via embedded ESRI alias tables (so `D_NAD_1983_2011` becomes
+/// `NAD83 (National Spatial Reference System 2011)`), and gain the
+/// corresponding EPSG identifier. **CRS names are not normalized**: a
+/// `PROJCS`, `VERT_CS`, or `GEOCCS` name is kept verbatim, and an ESRI
+/// `GEOGCS` name only has its `GCS_` prefix and underscores cleaned up, which
+/// does not generally produce the official EPSG name.
+///
+/// # Errors
+///
+/// - [`ParseError::LossyWkt1Node`] -- the input carries information that
+///   cannot be represented in [`Crs`]: `TOWGS84`, `EXTENSION`, `METADATA`, or
+///   a non-zero ESRI `Vertical_Shift`. Use [`parse_wkt1_lossy`] to discard
+///   these nodes instead.
+/// - [`ParseError::UnsupportedWkt1Node`] -- a construct this crate does not
+///   model, such as `LOCAL_CS`, `FITTED_CS`, or an unusable axis count.
+/// - [`ParseError::MissingWkt1Node`] -- a required node is absent, notably
+///   `UNIT`, without which coordinate and parameter values are meaningless.
+/// - [`ParseError::UnknownProjectionMethod`] /
+///   [`ParseError::UnknownParameter`] /
+///   [`ParseError::UnsupportedParameterValue`] -- the projection could not be
+///   resolved against the mapping tables.
+/// - the syntax errors shared with [`parse_wkt2`].
+///
+/// # Deviation from OGC 01-009
+///
+/// `PRIMEM` longitudes are always interpreted as degrees, matching GDAL/ESRI
+/// practice; a strict 01-009 reader would use the `GEOGCS` angular unit.
+pub fn parse_wkt1(input: &str) -> Result<Crs, ParseError> {
+    wkt1::parse(input, false)
+}
+
+/// Same as [`parse_wkt1`], but discards the nodes that cannot be represented
+/// in [`Crs`] (`TOWGS84`, `EXTENSION`, `METADATA`, non-zero ESRI
+/// `Vertical_Shift`) instead of failing.
+///
+/// Datum-shift information is lost. Every other error of [`parse_wkt1`] still
+/// applies: this relaxes what may be *thrown away*, not what may be guessed.
+pub fn parse_wkt1_lossy(input: &str) -> Result<Crs, ParseError> {
+    wkt1::parse(input, true)
 }
 
 /// Parse a PROJJSON string into a [`ProjectedCrs`].
