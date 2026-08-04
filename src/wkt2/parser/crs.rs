@@ -23,7 +23,7 @@ impl<'a> Parser<'a> {
     /// Used internally by `parse_crs` and for compound CRS components.
     fn parse_single_crs(&mut self) -> Result<Crs, ParseError> {
         self.skip_whitespace();
-        match self.peek_keyword().as_deref() {
+        match self.peek_keyword() {
             Some("PROJCRS") | Some("PROJECTEDCRS") => {
                 Ok(Crs::ProjectedCrs(Box::new(self.parse_projected_crs()?)))
             }
@@ -50,7 +50,7 @@ impl<'a> Parser<'a> {
     pub fn parse_projected_crs(&mut self) -> Result<ProjectedCrs, ParseError> {
         self.skip_whitespace();
         let keyword = self.parse_keyword()?;
-        match keyword.as_str() {
+        match keyword {
             "PROJCRS" | "PROJECTEDCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
@@ -125,7 +125,7 @@ impl<'a> Parser<'a> {
     pub fn parse_geog_crs(&mut self) -> Result<GeogCrs, ParseError> {
         self.skip_whitespace();
         let keyword_str = self.parse_keyword()?;
-        match keyword_str.as_str() {
+        match keyword_str {
             "GEOGCRS" | "GEOGRAPHICCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
@@ -145,7 +145,7 @@ impl<'a> Parser<'a> {
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
+        let dynamic = if self.peek_keyword() == Some("DYNAMIC") {
             let d = self.parse_dynamic_crs()?;
             self.skip_whitespace();
             self.expect_char(',')?;
@@ -155,7 +155,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        let mut datum = match self.peek_keyword().as_deref() {
+        let mut datum = match self.peek_keyword() {
             Some("ENSEMBLE") => Datum::Ensemble(self.parse_datum_ensemble()?),
             _ => Datum::ReferenceFrame(self.parse_geodetic_reference_frame()?),
         };
@@ -165,10 +165,7 @@ impl<'a> Parser<'a> {
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        if matches!(
-            self.peek_keyword().as_deref(),
-            Some("PRIMEM") | Some("PRIMEMERIDIAN")
-        ) {
+        if matches!(self.peek_keyword(), Some("PRIMEM") | Some("PRIMEMERIDIAN")) {
             let pm = self.parse_prime_meridian()?;
             match &mut datum {
                 Datum::ReferenceFrame(rf) => rf.prime_meridian = Some(pm),
@@ -239,7 +236,7 @@ impl<'a> Parser<'a> {
     pub fn parse_geod_crs(&mut self) -> Result<GeodCrs, ParseError> {
         self.skip_whitespace();
         let keyword_str = self.parse_keyword()?;
-        match keyword_str.as_str() {
+        match keyword_str {
             "GEODCRS" | "GEODETICCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
@@ -259,7 +256,7 @@ impl<'a> Parser<'a> {
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
+        let dynamic = if self.peek_keyword() == Some("DYNAMIC") {
             let d = self.parse_dynamic_crs()?;
             self.skip_whitespace();
             self.expect_char(',')?;
@@ -269,7 +266,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        let mut datum = match self.peek_keyword().as_deref() {
+        let mut datum = match self.peek_keyword() {
             Some("ENSEMBLE") => Datum::Ensemble(self.parse_datum_ensemble()?),
             _ => Datum::ReferenceFrame(self.parse_geodetic_reference_frame()?),
         };
@@ -279,10 +276,7 @@ impl<'a> Parser<'a> {
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        if matches!(
-            self.peek_keyword().as_deref(),
-            Some("PRIMEM") | Some("PRIMEMERIDIAN")
-        ) {
+        if matches!(self.peek_keyword(), Some("PRIMEM") | Some("PRIMEMERIDIAN")) {
             let pm = self.parse_prime_meridian()?;
             match &mut datum {
                 Datum::ReferenceFrame(rf) => rf.prime_meridian = Some(pm),
@@ -353,7 +347,7 @@ impl<'a> Parser<'a> {
     pub fn parse_vert_crs(&mut self) -> Result<VertCrs, ParseError> {
         self.skip_whitespace();
         let keyword_str = self.parse_keyword()?;
-        match keyword_str.as_str() {
+        match keyword_str {
             "VERTCRS" | "VERTICALCRS" => {}
             _ => {
                 return Err(ParseError::ExpectedKeyword {
@@ -373,7 +367,7 @@ impl<'a> Parser<'a> {
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        let source = if self.peek_keyword().as_deref() == Some("BASEVERTCRS") {
+        let source = if self.peek_keyword() == Some("BASEVERTCRS") {
             let base_vert_crs = self.parse_base_vert_crs()?;
             let deriving_conversion = self.comma_then(|p| p.parse_deriving_conversion())?;
             VertCrsSource::Derived {
@@ -381,7 +375,7 @@ impl<'a> Parser<'a> {
                 deriving_conversion,
             }
         } else {
-            let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
+            let dynamic = if self.peek_keyword() == Some("DYNAMIC") {
                 let d = self.parse_dynamic_crs()?;
                 self.skip_whitespace();
                 self.expect_char(',')?;
@@ -391,7 +385,7 @@ impl<'a> Parser<'a> {
                 None
             };
 
-            let datum = match self.peek_keyword().as_deref() {
+            let datum = match self.peek_keyword() {
                 Some("ENSEMBLE") => VerticalDatum::Ensemble(Box::new(self.parse_datum_ensemble()?)),
                 _ => VerticalDatum::ReferenceFrame(self.parse_vertical_reference_frame()?),
             };
@@ -474,7 +468,7 @@ impl<'a> Parser<'a> {
             p.expect_char(',')?;
             p.skip_whitespace();
 
-            let dynamic = if p.peek_keyword().as_deref() == Some("DYNAMIC") {
+            let dynamic = if p.peek_keyword() == Some("DYNAMIC") {
                 let d = p.parse_dynamic_crs()?;
                 p.skip_whitespace();
                 p.expect_char(',')?;
@@ -484,7 +478,7 @@ impl<'a> Parser<'a> {
                 None
             };
 
-            let datum = match p.peek_keyword().as_deref() {
+            let datum = match p.peek_keyword() {
                 Some("ENSEMBLE") => VerticalDatum::Ensemble(Box::new(p.parse_datum_ensemble()?)),
                 _ => VerticalDatum::ReferenceFrame(p.parse_vertical_reference_frame()?),
             };
@@ -610,7 +604,7 @@ impl<'a> Parser<'a> {
     fn parse_single_crs_component(&mut self) -> Result<SingleCrs, ParseError> {
         self.skip_whitespace();
         let kw = self.peek_keyword();
-        match kw.as_deref() {
+        match kw {
             Some("PROJCRS") | Some("PROJECTEDCRS") => Ok(SingleCrs::ProjectedCrs(Box::new(
                 self.parse_projected_crs()?,
             ))),
@@ -694,7 +688,7 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn parse_base_geodetic_crs(&mut self) -> Result<BaseGeodeticCrs, ParseError> {
         let keyword_str = self.parse_keyword()?;
-        let keyword = match keyword_str.as_str() {
+        let keyword = match keyword_str {
             "BASEGEODCRS" => BaseGeodeticCrsKeyword::BaseGeodCrs,
             "BASEGEOGCRS" => BaseGeodeticCrsKeyword::BaseGeogCrs,
             _ => {
@@ -715,7 +709,7 @@ impl<'a> Parser<'a> {
         self.expect_char(',')?;
         self.skip_whitespace();
 
-        let dynamic = if self.peek_keyword().as_deref() == Some("DYNAMIC") {
+        let dynamic = if self.peek_keyword() == Some("DYNAMIC") {
             let d = self.parse_dynamic_crs()?;
             self.skip_whitespace();
             self.expect_char(',')?;
@@ -725,7 +719,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        let mut datum = match self.peek_keyword().as_deref() {
+        let mut datum = match self.peek_keyword() {
             Some("ENSEMBLE") => Datum::Ensemble(self.parse_datum_ensemble()?),
             _ => Datum::ReferenceFrame(self.parse_geodetic_reference_frame()?),
         };
